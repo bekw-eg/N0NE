@@ -12,8 +12,9 @@ from app.integrations.geo_adapter import GeoAdapter
 from app.integrations.ollama import EmbeddingProvider, LLMProvider, OllamaEmbeddings, OllamaLLM
 from app.integrations.open_meteo import OpenMeteoClient
 from app.repositories.poi_repository import POIRepository
-from app.routers import health, pois, retrieval, routes, weather
+from app.routers import health, pois, privacy, retrieval, routes, weather
 from app.services.poi_service import POIService
+from app.services.privacy_service import PrivacyService
 from app.services.rag_service import RAGService
 from app.services.retrieval_service import RetrievalService
 from app.services.route_planner import RoutePlanner, WalkingAdapter
@@ -34,6 +35,7 @@ def create_app(
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         loaded = repository or POIRepository.load(config.poi_dataset_path)
         application.state.poi_service = POIService(loaded)
+        application.state.privacy_service = PrivacyService(config)
         with (
             httpx.Client(trust_env=False) as client,
             httpx.Client(
@@ -88,6 +90,7 @@ def create_app(
     application.include_router(retrieval.router)
     application.include_router(routes.router)
     application.include_router(weather.router)
+    application.include_router(privacy.router)
     return application
 
 
