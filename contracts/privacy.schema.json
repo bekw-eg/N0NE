@@ -1,0 +1,133 @@
+{
+  "$defs": {
+    "H3AnchorMatch": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "const": "matched",
+          "default": "matched",
+          "title": "Status",
+          "type": "string"
+        },
+        "start_anchor_id": {
+          "enum": [
+            "mega_silk_way",
+            "botanical_garden",
+            "expo_nur_alem",
+            "nurzhol_boulevard"
+          ],
+          "title": "Start Anchor Id",
+          "type": "string"
+        },
+        "resolution": {
+          "const": 8,
+          "default": 8,
+          "title": "Resolution",
+          "type": "integer"
+        },
+        "distance_estimate_m": {
+          "description": "Approximate straight-line meters from the H3 cell center to the anchor; not walking distance, time, or distance from the user's GPS position.",
+          "minimum": 0,
+          "title": "Distance Estimate M",
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "enum": [
+              "approximate_location",
+              "anchor_distance_not_walking_distance",
+              "manual_anchor_selection_required"
+            ],
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "start_anchor_id",
+        "distance_estimate_m",
+        "warnings"
+      ],
+      "title": "H3AnchorMatch",
+      "type": "object"
+    },
+    "H3NoNearbyAnchor": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "const": "no_nearby_anchor",
+          "default": "no_nearby_anchor",
+          "title": "Status",
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "outside_supported_area",
+            "no_anchor_within_radius"
+          ],
+          "title": "Reason",
+          "type": "string"
+        },
+        "resolution": {
+          "const": 8,
+          "default": 8,
+          "title": "Resolution",
+          "type": "integer"
+        },
+        "warnings": {
+          "items": {
+            "enum": [
+              "approximate_location",
+              "anchor_distance_not_walking_distance",
+              "manual_anchor_selection_required"
+            ],
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "reason",
+        "warnings"
+      ],
+      "title": "H3NoNearbyAnchor",
+      "type": "object"
+    },
+    "H3ResolveRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "h3_cell": {
+          "description": "Sensitive H3 cell index, resolution 8; generated on the device only.",
+          "maxLength": 15,
+          "minLength": 15,
+          "pattern": "^[0-9a-fA-F]{15}$",
+          "title": "H3 Cell",
+          "type": "string"
+        }
+      },
+      "required": [
+        "h3_cell"
+      ],
+      "title": "H3ResolveRequest",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "matched": "#/$defs/H3AnchorMatch",
+      "no_nearby_anchor": "#/$defs/H3NoNearbyAnchor"
+    },
+    "propertyName": "status"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/H3AnchorMatch"
+    },
+    {
+      "$ref": "#/$defs/H3NoNearbyAnchor"
+    }
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}

@@ -8,8 +8,15 @@ version = "0.1.0"
 description = "Validated POI API and grounded retrieval for VibeRoute"
 requires-python = ">=3.11"
 dependencies = [
-  "fastapi>=0.115,<1", "pydantic>=2.10,<3", "pydantic-settings>=2.7,<3",
-  "uvicorn>=0.34,<1", "httpx>=0.28,<1", "viberoute-data", "viberoute-geo",
+  "fastapi>=0.115,<1",
+  "pydantic>=2.10,<3",
+  "pydantic-settings>=2.7,<3",
+  "uvicorn>=0.34,<1",
+  "httpx>=0.28,<1",
+  "viberoute-data",
+  "viberoute-geo",
+  "tzdata>=2025.2",
+  "h3>=4,<5",
 ]
 
 [tool.uv.sources]
@@ -35,6 +42,11 @@ strict = true
 plugins = ["pydantic.mypy"]
 mypy_path = ["../../packages/data_pipeline/src", "../../packages/geo/src"]
 follow_imports = "silent"
+
+[[tool.mypy.overrides]]
+# h3-py 4.x ships neither type stubs nor a py.typed marker.
+module = ["h3", "h3.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

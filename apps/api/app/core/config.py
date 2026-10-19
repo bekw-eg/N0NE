@@ -34,6 +34,17 @@ class Settings(BaseSettings):
     route_max_candidates: int = Field(default=10, ge=1, le=10)
     route_nearby_radius_m: float = Field(default=2500, ge=100, le=10000)
     route_snap_radius_m: float = Field(default=100, ge=1, le=1000)
+    privacy_max_anchor_distance_m: float = Field(default=3000, gt=0, le=10000, allow_inf_nan=False)
+    weather_timeout_seconds: float = Field(default=5, gt=0, le=30, allow_inf_nan=False)
+    weather_forecast_hours: int = Field(default=3, ge=2, le=6)
+    weather_cache_ttl_seconds: float = Field(default=600, gt=0, le=3600, allow_inf_nan=False)
+    weather_failure_ttl_seconds: float = Field(default=30, gt=0, le=60, allow_inf_nan=False)
+    weather_cache_max_entries: int = Field(default=4, ge=1, le=4)
+    # Product heuristics for walking, not official hazardous weather thresholds.
+    weather_wind_kmh: float = Field(default=35, gt=0, allow_inf_nan=False)
+    weather_precipitation_mm: float = Field(default=2, gt=0, allow_inf_nan=False)
+    weather_cold_c: float = Field(default=0, ge=-100, le=70, allow_inf_nan=False)
+    weather_precipitation_probability: float = Field(default=70, ge=0, le=100, allow_inf_nan=False)
 
     @field_validator("ors_base_url")
     @classmethod

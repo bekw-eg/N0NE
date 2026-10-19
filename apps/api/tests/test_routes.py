@@ -5,6 +5,7 @@ from copy import copy
 from datetime import UTC, datetime
 from pathlib import Path
 
+import h3
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -182,6 +183,25 @@ def test_anchor_coordinates_only_from_catalog(
     assert fake.directions_requests[0].locations[0] == planner.anchors[anchor].location
     assert result["start_anchor"] == planner.anchors[anchor].model_dump(mode="json")
     assert (ROOT / "shared/anchors.json").is_file()
+
+
+@pytest.mark.parametrize(
+    "anchor_id", ["expo_nur_alem", "mega_silk_way", "botanical_garden", "nurzhol_boulevard"]
+)
+def test_h3_handoff_uses_only_catalog_start(
+    route_client: tuple[TestClient, FakeGeoAdapter], anchor_id: str
+) -> None:
+    client, fake = route_client
+    planner: RoutePlanner = client.app.state.route_planner
+    point = planner.anchors[anchor_id].location
+    cell = h3.latlng_to_cell(point.latitude, point.longitude, 8)
+    resolved = client.post("/api/v1/privacy/resolve-h3", json={"h3_cell": cell}).json()
+    assert resolved["status"] == "matched" and resolved["start_anchor_id"] == anchor_id
+    plan = client.post(URL, json=dict(BODY, start_anchor_id=resolved["start_anchor_id"])).json()
+    assert plan["status"] == "success"
+    assert fake.matrices[0].locations[0] == fake.directions_requests[0].locations[0] == point
+    assert (point.latitude, point.longitude) != h3.cell_to_latlng(cell)
+    assert cell not in str(plan)
 
 
 @pytest.mark.parametrize(

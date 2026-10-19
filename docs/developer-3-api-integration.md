@@ -222,5 +222,333 @@ warnings in `route_geojson.features[0].properties.warnings`; the top-level
 `ors_directions_warning` signals their presence. OSM/provider text is untrusted.
 
 The planner does not call Qwen or reselect stops through RAG. The greedy route
-is bounded, conservative and not guaranteed optimal. Weather and H3 remain
-separate Developer №1 tasks.
+is bounded, conservative and not guaranteed optimal. Weather is a separate service
+documented below; the planner does not consume it yet. H3 resolves to an existing
+anchor through the separate Privacy API described below.
+
+## Weather
+
+```js
+async function loadWeather(apiBase, startAnchorId = 'expo_nur_alem') {
+  const params = new URLSearchParams({ start_anchor_id: startAnchorId });
+  const response = await fetch(`${apiBase}/api/v1/weather?${params}`);
+  if (response.status === 422) throw new Error('Выберите зону из каталога');
+  if (!response.ok) throw new Error(`Weather service failed: ${response.status}`);
+  return response.json();
+}
+
+const weather = await loadWeather(apiBase);
+weatherElement.textContent = weather.status === 'unknown'
+  ? 'Погодные данные недоступны'
+  : `Температура: ${weather.temperature_c == null ? 'неизвестна' : `${weather.temperature_c} °C`}; ` +
+    `ветер: ${weather.wind_speed_kmh == null ? 'неизвестен' : `${weather.wind_speed_kmh} км/ч`}`;
+probabilityElement.textContent = weather.precipitation_probability_percent == null
+  ? 'Вероятность осадков неизвестна'
+  : `Вероятность осадков: ${weather.precipitation_probability_percent}% ` +
+    `(за час до ${weather.forecast_valid_at})`;
+weatherTimeElement.textContent =
+  `Текущая модель: ${weather.observed_at ?? 'нет данных'}; получено: ${weather.fetched_at}`;
+weatherWarningsElement.textContent = weather.warnings.join('\n'); // Localize known codes.
+weatherAttributionElement.textContent = 'Weather data by Open-Meteo (open-meteo.com)';
+```
+
+The named DOM elements belong to the frontend. Use `textContent`, clear old values
+when loading/failing, and display a link to https://open-meteo.com/ for attribution.
+Do not send GPS, forecast parameters, or credentials. The same four catalog anchor
+IDs used by route planning are supported; extra query parameters return 422.
+
+| Response field | Meaning |
+| --- | --- |
+| `status` | `available` means at least one usable indicator; `unknown` means none |
+| `anchor_id` | Requested catalog zone |
+| `temperature_c`, `apparent_temperature_c` | Current model °C; individually nullable |
+| `precipitation_mm` | Current model-step amount in mm (typically 15 min); nullable |
+| `precipitation_probability_percent` | 0–100%, probability for the hour ending at `forecast_valid_at`; nullable |
+| `wind_speed_kmh`, `weather_code` | Current km/h and WMO code; nullable |
+| `observed_at` | Timestamp for available current model indicators, never borrowed from hourly forecast |
+| `forecast_valid_at` | End of probability's preceding-hour interval, selected to contain retrieval time |
+| `timezone` | Always `Asia/Almaty`; timestamps include its UTC offset |
+| `fetched_at`, `source` | Fetch completion/attempt time and `open-meteo`; preserved on cache hits |
+| `cache_status` | `miss` for live fetch attempts, `hit` for cached responses |
+| `warnings` | Machine codes for model limitations, missing data, failures and walking heuristics |
+
+`unknown` is an intentional HTTP 200 fallback with all weather indicators,
+`observed_at` and `forecast_valid_at` null; show unavailable, never zero or good
+weather. Partial `available` responses can also contain null current conditions
+or null probability, and the UI must handle each independently. `observed_at` is
+an Open-Meteo model estimate, not a measured weather-station reading.
+At 21:05, probability ending at 22:00 describes the 21:00–22:00 hour, while
+temperature can have its own 21:00 or 21:05 model timestamp. At an exact hour,
+the next interval is selected. Do not label hourly probability as observed rain.
+
+| Warning | Meaning / UI handling |
+| --- | --- |
+| `weather_model_estimate_not_station_observation` | Model output, not a station measurement |
+| `weather_current_incomplete` | One or more current indicators missing; preserve nulls |
+| `weather_hourly_probability_unavailable` | No usable probability for the interval containing fetch time |
+| `weather_conditions_unknown` | No trustworthy weather indicators; show unavailable |
+| `weather_timeout`, `weather_connection_error` | Provider timeout or connection/DNS/protocol failure |
+| `weather_rate_limited` | Provider HTTP 429; avoid automatic rapid retries |
+| `weather_upstream_unavailable` | Provider HTTP 5xx |
+| `weather_http_error` | Other non-success provider status |
+| `weather_invalid_json`, `weather_invalid_response` | Invalid JSON or failed units/value/time/schema validation |
+| `weather_strong_wind` | Wind ≥35 km/h by default |
+| `weather_significant_precipitation` | Current-step precipitation ≥2 mm by default |
+| `weather_low_temperature` | Feels-like ≤0 °C; falls back to air temperature only when feels-like is absent |
+| `weather_high_precipitation_probability` | Selected hourly probability ≥70% by default |
+
+Show unknown future warning codes safely as text. The four walking thresholds are
+server-configured product heuristics, not official danger criteria. Missing data
+and absence of heuristic warnings cannot establish safe or pleasant weather.
+Weather warnings do not modify ORS walking times, geometry or route budgets.
+
+Cache TTL is 10 minutes with at most four entries per process; the forecast hour
+boundary or a now-stale current observation can force earlier refresh. Hits retain
+original evidence/fetch times. Failed refreshes discard old evidence and return
+unknown, cached for 30 seconds. Multiple workers have separate caches. No polling
+loop is needed for the MVP; load on anchor selection and allow manual retry.
+
+For backend integration, use the injected service directly:
+
+```python
+from app.schemas.weather import WeatherResponse
+from app.services.weather_service import WeatherService
+
+def weather_for_plan(service: WeatherService) -> WeatherResponse:
+    return service.get_weather("expo_nur_alem")
+```
+
+`get_weather_service` resolves the shared application instance in FastAPI;
+`create_app(weather_service=...)` accepts a replacement instance for tests.
+Calling this synchronous service from an async route requires a worker thread.
+The current Route Planner is intentionally not wired to it. No RAG or ORS
+dependency is introduced into WeatherService. See
+[weather.schema.json](../contracts/weather.schema.json), `/openapi.json`,
+[the configuration table](../apps/api/README.md#open-meteo-weather) and
+[the official Open-Meteo definitions](https://open-meteo.com/en/docs).
+
+## Approximate location with H3
+
+Install `h3-js` **4.x** in the frontend (`npm install h3-js@^4`). Browser GPS must
+be converted on the device with `latLngToCell(latitude, longitude, 8)`. The backend
+accepts only the resulting cell ID. Never send GPS to any backend, map provider,
+analytics, error tracker or LLM. Do not put GPS or H3 in URLs, cookies,
+localStorage, sessionStorage, logs or analytics. Do not include coordinates in
+the route preference query. This integration requires no frontend file changes
+from the backend developer; Developer №3 can adapt this example to the UI.
+
+```http
+POST /api/v1/privacy/resolve-h3
+Content-Type: application/json
+
+{"h3_cell":"882153806dfffff"}
+```
+
+This real resolution-8 example was generated from the **public EXPO catalog
+point**, not a user's location. With the committed catalog and default settings:
+
+```json
+{
+  "status": "matched",
+  "start_anchor_id": "expo_nur_alem",
+  "resolution": 8,
+  "distance_estimate_m": 394,
+  "warnings": ["approximate_location", "anchor_distance_not_walking_distance"]
+}
+```
+
+The distance is approximate **straight-line meters from the cell center to the
+catalog anchor**, not from the user's exact GPS position, not a walking distance
+and not a walking time. The H3 center is never supplied as a route waypoint.
+Route planning still begins at the catalog anchor and uses its existing ORS
+coordinates/limitations. EXPO's catalog point is a bounding-box center, not a
+confirmed entrance. Even a mapped entrance does not establish current access.
+
+The following TypeScript example reuses `planWalk` from the route planner section.
+Call it only after the user presses an explicit “Use approximate location” button.
+`chooseManually` must show a selector containing the four zones and resolve its
+Promise after the user's selection, or `null` on cancel; it must never silently
+choose a default. For manual-only use, call `planManually` directly.
+
+```ts
+import { latLngToCell } from 'h3-js'; // 4.x
+
+const ANCHORS = [
+  'expo_nur_alem', 'mega_silk_way', 'botanical_garden', 'nurzhol_boulevard',
+] as const;
+type AnchorID = typeof ANCHORS[number];
+type FallbackReason = 'location_unavailable' | 'no_nearby_anchor' | 'privacy_unavailable';
+type ChooseManually = (reason: FallbackReason) => Promise<AnchorID | null>;
+type Resolution =
+  | { status: 'matched'; start_anchor_id: AnchorID; resolution: 8;
+      distance_estimate_m: number; warnings: string[] }
+  | { status: 'no_nearby_anchor'; resolution: 8;
+      reason: 'outside_supported_area' | 'no_anchor_within_radius'; warnings: string[] };
+
+function deviceCell(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!window.isSecureContext || !navigator.geolocation) {
+      reject(new Error('location_unavailable'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        try {
+          // Coordinates remain inside this device callback; only the cell leaves it.
+          resolve(latLngToCell(position.coords.latitude, position.coords.longitude, 8));
+        } catch {
+          reject(new Error('location_unavailable'));
+        }
+      },
+      // Denied permission, timeout and unavailable positioning all allow manual use.
+      () => reject(new Error('location_unavailable')),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 0 },
+    );
+  });
+}
+
+async function resolveDeviceCell(apiBase: string): Promise<Resolution> {
+  const h3Cell = await deviceCell(); // Short-lived memory only; never log this value.
+  const response = await fetch(`${apiBase}/api/v1/privacy/resolve-h3`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'omit',
+    cache: 'no-store',
+    referrerPolicy: 'no-referrer',
+    body: JSON.stringify({ h3_cell: h3Cell }), // No GPS or additional fields.
+  });
+  if (!response.ok) throw new Error('privacy_unavailable');
+  return response.json();
+}
+
+async function planWithApproximateLocation(
+  apiBase: string, query: string, chooseManually: ChooseManually,
+) {
+  let anchor: AnchorID | null = null;
+  let fallback: FallbackReason = 'privacy_unavailable';
+  try {
+    const resolved = await resolveDeviceCell(apiBase);
+    if (resolved.status === 'matched' && ANCHORS.includes(resolved.start_anchor_id)) {
+      anchor = resolved.start_anchor_id;
+      // Show approximate-location and straight-line-distance warnings in the UI.
+    } else if (resolved.status === 'no_nearby_anchor') {
+      fallback = 'no_nearby_anchor';
+    }
+  } catch (error) {
+    // Do not log the position, cell, request body or original browser error.
+    if (error instanceof Error && error.message === 'location_unavailable') {
+      fallback = 'location_unavailable';
+    }
+  }
+  if (anchor === null) anchor = await chooseManually(fallback);
+  if (anchor === null) return null; // User cancelled; do not submit a route.
+  if (!ANCHORS.includes(anchor)) throw new Error('invalid_manual_anchor');
+  return planWalk(apiBase, query, anchor); // Existing /api/v1/routes/plan contract.
+}
+
+async function planManually(apiBase: string, query: string, chooseManually: ChooseManually) {
+  const anchor = await chooseManually('location_unavailable');
+  if (anchor === null) return null;
+  if (!ANCHORS.includes(anchor)) throw new Error('invalid_manual_anchor');
+  return planWalk(apiBase, query, anchor); // No geolocation permission or H3 request.
+}
+```
+
+For example, an existing `<select>` and a confirmation button can implement
+`chooseManually` as follows. Use these IDs or adapt them to your components;
+disable repeated planning/location submissions while a request is pending.
+
+```html
+<div id="manual-zone" hidden>
+  <p id="manual-reason" role="status"></p>
+  <select id="manual-anchor" aria-label="Стартовая зона">
+    <option value="">Выберите зону</option>
+    <option value="expo_nur_alem">EXPO — Nur Alem</option>
+    <option value="mega_silk_way">Mega Silk Way</option>
+    <option value="botanical_garden">Ботанический сад</option>
+    <option value="nurzhol_boulevard">Бульвар Нуржол</option>
+  </select>
+  <button id="manual-confirm" type="button">Построить маршрут</button>
+  <button id="manual-cancel" type="button">Отмена</button>
+</div>
+```
+
+```ts
+const chooseManually: ChooseManually = reason => new Promise(resolve => {
+  const panel = document.getElementById('manual-zone') as HTMLDivElement;
+  const select = document.getElementById('manual-anchor') as HTMLSelectElement;
+  const confirm = document.getElementById('manual-confirm') as HTMLButtonElement;
+  const cancel = document.getElementById('manual-cancel') as HTMLButtonElement;
+  const text = document.getElementById('manual-reason')!;
+  text.textContent = reason === 'no_nearby_anchor'
+    ? 'Рядом нет поддерживаемой стартовой зоны. Выберите зону вручную.'
+    : 'Определение зоны недоступно. Выберите зону вручную.';
+  panel.hidden = false;
+  select.value = '';
+  const finish = (anchor: AnchorID | null) => {
+    panel.hidden = true;
+    confirm.onclick = cancel.onclick = null;
+    resolve(anchor);
+  };
+  confirm.onclick = () => {
+    const anchor = ANCHORS.find(id => id === select.value);
+    if (anchor) finish(anchor);
+    else select.focus();
+  };
+  cancel.onclick = () => finish(null);
+  select.focus();
+});
+// const plan = await planWithApproximateLocation(apiBase, query, chooseManually);
+// Render the returned plan with the existing route UI, including status=no_route.
+```
+
+Both valid-input outcomes return HTTP 200. `no_nearby_anchor` has **no**
+`start_anchor_id` or distance field: do not reuse a previous anchor or route.
+Its reason is `outside_supported_area` or `no_anchor_within_radius`; both require
+manual selection. An invalid H3 ID, wrong resolution, non-cell index, missing
+body/cell, GPS/extra body properties or any query parameter returns 422.
+The input is a strict 15-character hexadecimal string. Bodies over 16 KiB return
+413. Errors omit submitted values. Responses do not echo H3 or cell-center/GPS
+coordinates. Successful resolutions use `Cache-Control: no-store`.
+
+| Warning | Meaning / UI handling |
+| --- | --- |
+| `approximate_location` | H3 represents an approximate area, not a precise location |
+| `anchor_distance_not_walking_distance` | Distance estimate is cell-center to anchor, straight line only |
+| `manual_anchor_selection_required` | No eligible anchor was resolved; show the four-zone selector |
+
+Matched responses contain the first two codes; unmatched responses contain the
+first and third. Localize known codes and display unknown codes safely as text.
+Do not display the distance as “walk to start” or add it to ORS walking time.
+
+Coverage is the existing POI snapshot box: latitude 51.075–51.145, longitude
+71.385–71.455, inclusive **by cell center**. This is conservative MVP coverage,
+not an administrative boundary for all Astana. A border user's cell can have its
+center outside the box and require manual selection. Matching uses the nearest
+catalog anchor within `PRIVACY_MAX_ANCHOR_DISTANCE_M` (default 3000), comparing
+unrounded meters; exact ties use anchor ID order. The server never changes H3
+resolution, and never uses a cell/bounding-box center as a newly verified entrance.
+
+Deploy the frontend and API over **HTTPS**. Browser geolocation requires a secure
+context and user permission (localhost is a development exception). Request it
+on a user action, explain that only a coarse cell will be sent, and always offer
+manual selection. Low-accuracy browser options do not themselves protect GPS;
+the local H3 conversion and data handling are what reduce transmitted precision.
+
+**Privacy limitations:** resolution-8 H3 still discloses an approximate area.
+The receiver can recover its boundary/center; repeated cells and IP addresses,
+timestamps or account identifiers can reveal movement and enable linkage. This
+is not anonymity, encryption or protection against a compromised device/client.
+The API needs the sensitive cell transiently in request memory. It does not
+persist/cache it, call external location services or include it in application
+logs. Hosting/proxy/APM request-body capture, replay tools and exception-local
+capture must be disabled/redacted for this endpoint. Rejected GPS in an arbitrary
+URL can still reach infrastructure access logs; redact query strings there.
+Avoid linking resolution requests to analytics or user profiles. Public anchor
+coordinates in later route/weather calls are catalog data, not the user's GPS.
+
+Contract: [privacy.schema.json](../contracts/privacy.schema.json) describes the
+response union; its `$defs.H3ResolveRequest` describes the request. Runtime
+OpenAPI includes both. References: [H3 4.x indexing](https://h3geo.org/docs/api/indexing/),
+[h3-py validation/API](https://uber.github.io/h3-py/api_quick.html),
+[official h3-js](https://github.com/uber/h3-js).

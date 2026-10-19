@@ -10,12 +10,15 @@ from app.core.config import Settings
 from app.core.errors import install_error_handlers
 from app.integrations.geo_adapter import GeoAdapter
 from app.integrations.ollama import EmbeddingProvider, LLMProvider, OllamaEmbeddings, OllamaLLM
+from app.integrations.open_meteo import OpenMeteoClient
 from app.repositories.poi_repository import POIRepository
-from app.routers import health, pois, retrieval, routes
+from app.routers import health, pois, privacy, retrieval, routes, weather
 from app.services.poi_service import POIService
+from app.services.privacy_service import PrivacyService
 from app.services.rag_service import RAGService
 from app.services.retrieval_service import RetrievalService
 from app.services.route_planner import RoutePlanner, WalkingAdapter
+from app.services.weather_service import WeatherService
 
 
 def create_app(
@@ -24,6 +27,7 @@ def create_app(
     embedding_provider: EmbeddingProvider | None = None,
     llm_provider: LLMProvider | None = None,
     geo_adapter: WalkingAdapter | None = None,
+    weather_service: WeatherService | None = None,
 ) -> FastAPI:
     config = settings or Settings()
 
@@ -31,6 +35,7 @@ def create_app(
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         loaded = repository or POIRepository.load(config.poi_dataset_path)
         application.state.poi_service = POIService(loaded)
+        application.state.privacy_service = PrivacyService(config)
         with (
             httpx.Client(trust_env=False) as client,
             httpx.Client(
@@ -39,6 +44,7 @@ def create_app(
                 ),
                 trust_env=False,
             ) as geo_client,
+            httpx.Client(trust_env=False, follow_redirects=False) as weather_client,
         ):
             embedding = embedding_provider
             if embedding is None and config.semantic_enabled:
@@ -59,6 +65,14 @@ def create_app(
                 )
             )
             application.state.route_planner = RoutePlanner(search, walking, config)
+            application.state.weather_service = weather_service or WeatherService(
+                OpenMeteoClient(
+                    weather_client,
+                    timeout_seconds=config.weather_timeout_seconds,
+                    forecast_hours=config.weather_forecast_hours,
+                ),
+                config,
+            )
             yield
 
     application = FastAPI(title="VibeRoute POI API", version="0.1.0", lifespan=lifespan)
@@ -75,6 +89,8 @@ def create_app(
     application.include_router(pois.router)
     application.include_router(retrieval.router)
     application.include_router(routes.router)
+    application.include_router(weather.router)
+    application.include_router(privacy.router)
     return application
 
 
