@@ -1,6 +1,7 @@
 """VibeRoute's standalone walking provider integration."""
 
 from .adapter import GeoAdapter, GeoError
+from .anchors import Anchor, AnchorCatalog
 from .models import (
     DirectionsRequest,
     GeoPoint,
@@ -12,6 +13,8 @@ from .models import (
 )
 
 __all__ = [
+    "Anchor",
+    "AnchorCatalog",
     "GeoAdapter",
     "GeoError",
     "GeoPoint",

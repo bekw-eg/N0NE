@@ -5,48 +5,19 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Literal
 
-from pydantic import AwareDatetime, Field, HttpUrl, ValidationError
+from pydantic import ValidationError
 
 from .adapter import DEFAULT_BASE_URL, GeoAdapter, GeoError
+from .anchors import Anchor as Anchor
+from .anchors import AnchorCatalog as AnchorCatalog
+from .exports import atomic_json as atomic_json
 from .models import (
     DirectionsRequest,
-    GeoPoint,
     IsochronesRequest,
     MatrixRequest,
-    Model,
 )
-
-
-class Anchor(Model):
-    id: str = Field(min_length=1)
-    name: str = Field(min_length=1)
-    location: GeoPoint
-    coordinate_kind: Literal["osm_node", "bounding_box_center", "mapped_entrance"]
-    source_url: HttpUrl
-    osm_version: int = Field(gt=0, strict=True)
-    osm_updated_at: AwareDatetime
-    retrieved_at: AwareDatetime
-
-
-class AnchorCatalog(Model):
-    schema_version: Literal["0.1.0"]
-    description: str
-    anchors: list[Anchor]
-
-
-def atomic_json(path: Path, value: object) -> None:
-    contents = (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode(
-        "utf-8"
-    )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        temporary.write_bytes(contents)
-        temporary.replace(path)
-    finally:
-        temporary.unlink(missing_ok=True)
+from .scenario import run_scenario
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -54,18 +25,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--anchors", type=Path, default=Path("shared/anchors.json"))
     parser.add_argument("--origin", default="mega_silk_way")
     parser.add_argument("--destination", default="botanical_garden")
+    parser.add_argument(
+        "--all-anchors", action="store_true", help="Check all directed anchor pairs"
+    )
     parser.add_argument("--mode", choices=("live", "recorded"), default="live")
-    parser.add_argument("--recordings-dir", type=Path, default=Path("data/geo/recordings"))
+    parser.add_argument("--recordings-dir", type=Path)
     parser.add_argument("--max-recording-age-seconds", type=int, default=86400)
     parser.add_argument("--snap-radius-m", type=float, default=100)
-    parser.add_argument("--output-dir", type=Path, default=Path("data/geo/demo"))
+    parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args(argv)
+    default_root = Path("data/geo/anchors" if args.all_anchors else "data/tmp/geo-smoke")
+    args.recordings_dir = args.recordings_dir or default_root / "recordings"
+    args.output_dir = args.output_dir or default_root / "demo"
     try:
         catalog = AnchorCatalog.model_validate_json(args.anchors.read_bytes())
         by_id = {anchor.id: anchor for anchor in catalog.anchors}
         if len(by_id) != len(catalog.anchors):
             raise ValueError("Anchor IDs must be unique")
-        origin, destination = by_id[args.origin], by_id[args.destination]
         adapter = GeoAdapter(
             api_key=os.environ.get("ORS_API_KEY"),
             base_url=os.environ.get("ORS_BASE_URL", DEFAULT_BASE_URL),
@@ -73,6 +49,17 @@ def main(argv: list[str] | None = None) -> int:
             recordings_dir=args.recordings_dir,
             max_recording_age_seconds=args.max_recording_age_seconds,
         )
+        if args.all_anchors:
+            success = run_scenario(
+                catalog,
+                adapter,
+                args.output_dir,
+                mode=args.mode,
+                snap_radius_m=args.snap_radius_m,
+            )
+            print(json.dumps({"mode": args.mode, "all_checks_succeeded": success}))
+            return 0 if success else 2
+        origin, destination = by_id[args.origin], by_id[args.destination]
         locations = [origin.location, destination.location]
         route = adapter.directions(
             DirectionsRequest(locations=locations, snap_radius_m=args.snap_radius_m)

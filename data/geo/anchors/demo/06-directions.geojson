@@ -1,0 +1,187 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            71.416699,
+            51.089507
+          ],
+          [
+            71.416618,
+            51.089582
+          ],
+          [
+            71.416444,
+            51.089668
+          ],
+          [
+            71.416232,
+            51.08972
+          ],
+          [
+            71.416081,
+            51.08972
+          ],
+          [
+            71.415923,
+            51.089691
+          ],
+          [
+            71.415659,
+            51.089603
+          ],
+          [
+            71.415582,
+            51.089544
+          ],
+          [
+            71.415424,
+            51.089606
+          ],
+          [
+            71.41526,
+            51.089581
+          ],
+          [
+            71.415209,
+            51.089443
+          ],
+          [
+            71.414667,
+            51.089304
+          ],
+          [
+            71.414385,
+            51.089231
+          ],
+          [
+            71.414311,
+            51.089224
+          ],
+          [
+            71.414043,
+            51.089197
+          ],
+          [
+            71.413618,
+            51.089154
+          ],
+          [
+            71.413629,
+            51.089049
+          ],
+          [
+            71.413571,
+            51.089043
+          ],
+          [
+            71.413457,
+            51.08903
+          ],
+          [
+            71.413343,
+            51.089016
+          ],
+          [
+            71.413281,
+            51.08901
+          ],
+          [
+            71.412073,
+            51.088892
+          ],
+          [
+            71.41186,
+            51.088875
+          ],
+          [
+            71.411744,
+            51.088868
+          ],
+          [
+            71.411751,
+            51.08885
+          ],
+          [
+            71.411588,
+            51.088832
+          ],
+          [
+            71.411393,
+            51.088813
+          ],
+          [
+            71.411264,
+            51.088796
+          ],
+          [
+            71.411237,
+            51.088794
+          ],
+          [
+            71.411233,
+            51.088811
+          ]
+        ]
+      },
+      "properties": {
+        "summary": {
+          "distance": 435.0,
+          "duration": 313.2
+        },
+        "way_points": [
+          0,
+          29
+        ],
+        "warnings": [
+          {
+            "code": 4,
+            "message": "Extra info requested but not available: roadaccessrestrictions"
+          }
+        ]
+      }
+    }
+  ],
+  "viberoute_provenance": {
+    "provider": "openrouteservice",
+    "profile": "foot-walking",
+    "mode": "live",
+    "retrieved_at": "2026-10-19T16:17:29.306803Z",
+    "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+    "metadata": {
+      "attribution": "openrouteservice.org | OpenStreetMap contributors",
+      "service": "routing",
+      "timestamp": 1792426652984,
+      "query": {
+        "coordinates": [
+          [
+            71.4161925,
+            51.089252
+          ],
+          [
+            71.4107868,
+            51.0887669
+          ]
+        ],
+        "profile": "foot-walking",
+        "profileName": "foot-walking",
+        "format": "geojson",
+        "units": "m",
+        "radiuses": [
+          100.0,
+          100.0
+        ]
+      },
+      "engine": {
+        "version": "9.10.0",
+        "build_date": "2026-08-13T11:53:14Z",
+        "graph_date": "2026-09-20T06:31:34Z",
+        "osm_date": "2026-09-13T23:59:59Z"
+      }
+    }
+  }
+}
