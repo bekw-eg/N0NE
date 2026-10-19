@@ -1,6 +1,7 @@
 """Bounded, deterministic planning using ORS graph metrics and source POIs."""
 
 from dataclasses import dataclass
+from itertools import product
 from math import asin, cos, isfinite, radians, sin, sqrt
 from typing import Protocol
 
@@ -17,6 +18,7 @@ from app.integrations.geo_adapter import (
     MatrixResult,
     RouteResult,
 )
+from app.retrieval.text import requests_pizza
 from app.schemas.poi import Category, PublicPOI
 from app.schemas.rag import Language, RetrievalMode, SearchRequest
 from app.schemas.routes import (
@@ -29,6 +31,7 @@ from app.schemas.routes import (
     RoutingProvenance,
 )
 from app.services.retrieval_service import RetrievalService
+from app.services.route_intent import STOP_CATEGORIES, requested_stages
 
 # Planning allowances, not observed visit durations or promises of admission.
 VISIT_MINUTES: dict[Category, int] = {
@@ -65,6 +68,7 @@ class Candidate:
     poi: PublicPOI
     rank: int
     nearby_fallback: bool = False
+    stage: int | None = None
 
     @property
     def point(self) -> GeoPoint:
@@ -157,7 +161,7 @@ class RoutePlanner:
         catalog = AnchorCatalog.model_validate_json((ROOT / "shared/anchors.json").read_bytes())
         self.anchors = {anchor.id: anchor for anchor in catalog.anchors}
 
-    def _eligible(self, poi: PublicPOI, anchor: Anchor) -> bool:
+    def _eligible(self, poi: PublicPOI, anchor: Anchor, *, allow_anchor: bool = False) -> bool:
         if (
             not isfinite(poi.longitude)
             or not isfinite(poi.latitude)
@@ -168,8 +172,10 @@ class RoutePlanner:
         distance = haversine(
             anchor.location, GeoPoint(longitude=poi.longitude, latitude=poi.latitude)
         )
-        # Do not recommend a visit to the same representative coordinate as the start.
-        return 1 <= distance <= self.settings.route_nearby_radius_m
+        # A source-matched park can be the final required visit after coffee,
+        # even when the user starts at that park. Other same-point visits stay excluded.
+        minimum = 0 if allow_anchor and str(poi.source_url) == str(anchor.source_url) else 1
+        return minimum <= distance <= self.settings.route_nearby_radius_m
 
     def _candidates(
         self, request: RoutePlanRequest
@@ -179,6 +185,49 @@ class RoutePlanner:
             SearchRequest(query=request.query, top_k=10, language=request.language)
         )
         repository = self.retrieval.repository
+        stages = requested_stages(request.query)
+        if stages:
+            # Retrieve each required category within the geographic filter,
+            # rather than letting global top-k exhaust one category or region.
+            warnings = [w for w in found.warnings if w != "walking_access_not_checked"]
+            if self.settings.route_max_candidates < len(stages):
+                return (
+                    [],
+                    [*warnings, "required_stages_exceed_candidate_limit"],
+                    found.retrieval_mode,
+                )
+            grouped: list[list[PublicPOI]] = []
+            for stage_index, kind in enumerate(stages):
+                eligible = [
+                    poi
+                    for poi in repository.items
+                    if poi.category in STOP_CATEGORIES[kind]
+                    and self._eligible(poi, anchor, allow_anchor=kind == "park" and stage_index > 0)
+                ]
+                eligible.sort(
+                    key=lambda poi: (
+                        not bool(poi.name),
+                        haversine(
+                            anchor.location,
+                            GeoPoint(longitude=poi.longitude, latitude=poi.latitude),
+                        ),
+                        poi.id,
+                    )
+                )
+                if not eligible:
+                    return [], [*warnings, f"required_stop_missing:{kind}"], found.retrieval_mode
+                grouped.append(eligible)
+            staged: list[Candidate] = []
+            quota, remainder = divmod(self.settings.route_max_candidates, len(stages))
+            for stage, eligible in enumerate(grouped):
+                staged.extend(
+                    Candidate(poi, rank, stage=stage)
+                    for rank, poi in enumerate(
+                        eligible[: quota + int(stage < remainder)],
+                        start=1,
+                    )
+                )
+            return staged, warnings, found.retrieval_mode
         candidates: list[Candidate] = []
         seen: set[str] = set()
         for hit in found.results:
@@ -189,7 +238,7 @@ class RoutePlanner:
                 seen.add(poi.id)
         candidates.sort(key=lambda candidate: (candidate.rank, candidate.poi.id))
         target = min(3, self.settings.route_max_candidates)
-        if len(candidates) < target:
+        if len(candidates) < target and not requests_pizza(request.query):
             nearby = [
                 poi
                 for poi in repository.items
@@ -226,6 +275,8 @@ class RoutePlanner:
     def _select(
         self, candidates: list[Candidate], matrix: MatrixResult, request: RoutePlanRequest
     ) -> list[Candidate]:
+        if requested_stages(request.query):
+            return self._select_stages(candidates, matrix, request)
         selected: list[Candidate] = []
         indices: list[int] = []
         elapsed = 0.0
@@ -260,9 +311,58 @@ class RoutePlanner:
             current = chosen
         return selected
 
+    def _select_stages(
+        self,
+        candidates: list[Candidate],
+        matrix: MatrixResult,
+        request: RoutePlanRequest,
+        *,
+        ignore_budget: bool = False,
+    ) -> list[Candidate]:
+        stages = requested_stages(request.query)
+        options = [
+            [
+                index
+                for index, candidate in enumerate(candidates, start=1)
+                if candidate.stage == stage
+            ]
+            for stage in range(len(stages))
+        ]
+        best: tuple[float, int, tuple[str, ...]] | None = None
+        selected: list[Candidate] = []
+        # At most 10 candidates and two required stages: bounded complete-path
+        # search. Budget includes visits, every directed leg and the return leg.
+        for indices in product(*options):
+            stops = [candidates[index - 1] for index in indices]
+            if any(
+                haversine(first.point, second.point) < 1
+                for i, first in enumerate(stops)
+                for second in stops[i + 1 :]
+            ):
+                continue
+            path = [0, *indices, *([0] if request.round_trip else [])]
+            legs = [
+                self._leg(matrix, start, end) for start, end in zip(path, path[1:], strict=False)
+            ]
+            if any(leg is None for leg in legs):
+                continue
+            total = sum(leg for leg in legs if leg is not None) + sum(
+                stop.visit_seconds for stop in stops
+            )
+            if not ignore_budget and total > request.duration_minutes * 60:
+                continue
+            priority = (
+                total,
+                sum(stop.rank for stop in stops),
+                tuple(stop.poi.id for stop in stops),
+            )
+            if best is None or priority < best:
+                best, selected = priority, stops
+        return selected
+
     def _directions(self, anchor: Anchor, stops: list[Candidate], round_trip: bool) -> RouteResult:
         points = [anchor.location, *[stop.point for stop in stops]]
-        if round_trip:
+        if round_trip and points[-1] != anchor.location:
             points.append(anchor.location)
         route = self.adapter.directions(
             DirectionsRequest(locations=points, snap_radius_m=self.settings.route_snap_radius_m)
@@ -306,6 +406,40 @@ class RoutePlanner:
         provenance = RoutingProvenance()
 
         def unavailable(reason: NoRouteReason) -> RoutePlanUnavailable:
+            explanation = no_route_explanation(reason, request.language)
+            if reason == "budget_exceeded":
+                explanation += (
+                    {
+                        "ru": " Увеличьте длительность или отключите возврат к старту.",
+                        "kk": " Уақытты көбейтіңіз немесе бастапқы нүктеге қайтуды өшіріңіз.",
+                        "en": " Allow more time or turn off the return to the starting point.",
+                    }[request.language]
+                    if request.round_trip
+                    else {
+                        "ru": " Увеличьте длительность или выберите другой старт.",
+                        "kk": " Уақытты көбейтіңіз немесе басқа бастапқы нүктені таңдаңыз.",
+                        "en": " Allow more time or choose another starting point.",
+                    }[request.language]
+                )
+            if reason == "no_candidates" and requests_pizza(request.query):
+                radius = f"{self.settings.route_nearby_radius_m:g}"
+                explanation = {
+                    "ru": f"В данных OSM не найдено пиццерии в пределах {radius} м "
+                    "от выбранного старта. Выберите другую точку старта.",
+                    "kk": f"OSM деректерінде бастапқы нүктеден {radius} м ішінде "
+                    "пиццерия табылмады. Басқа бастапқы нүктені таңдаңыз.",
+                    "en": f"No pizzeria was found in the OSM dataset within {radius} m "
+                    "of the selected start. Choose another starting point.",
+                }[request.language]
+            elif reason == "no_candidates" and requested_stages(request.query):
+                explanation = {
+                    "ru": "Не найдены все необходимые места для запрошенного маршрута "
+                    "рядом с выбранным стартом. Выберите другую точку старта.",
+                    "kk": "Таңдалған бастапқы нүкте маңында сұралған маршрутқа қажетті "
+                    "орындардың бәрі табылмады. Басқа бастапқы нүктені таңдаңыз.",
+                    "en": "Not all required stops were found near the selected start. "
+                    "Choose another starting point.",
+                }[request.language]
             return RoutePlanUnavailable(
                 start_anchor_id=request.start_anchor_id,
                 start_anchor=anchor,
@@ -313,7 +447,7 @@ class RoutePlanner:
                 round_trip=request.round_trip,
                 language=request.language,
                 retrieval_mode=mode,
-                recommendation=no_route_explanation(reason, request.language),
+                recommendation=explanation,
                 reason=reason,
                 warnings=sorted(set(warnings)),
                 routing_provenance=provenance,
@@ -332,10 +466,14 @@ class RoutePlanner:
             selected = self._select(candidates, matrix, request)
             if not selected:
                 # Distinguish disconnected graph from a connected but unaffordable visit.
-                connected = any(
-                    self._leg(matrix, 0, i) is not None
-                    and (not request.round_trip or self._leg(matrix, i, 0) is not None)
-                    for i in range(1, len(candidates) + 1)
+                connected = (
+                    bool(self._select_stages(candidates, matrix, request, ignore_budget=True))
+                    if requested_stages(request.query)
+                    else any(
+                        self._leg(matrix, 0, i) is not None
+                        and (not request.round_trip or self._leg(matrix, i, 0) is not None)
+                        for i in range(1, len(candidates) + 1)
+                    )
                 )
                 return unavailable("budget_exceeded" if connected else "unreachable")
             # One initial Directions request and at most one recalculation after dropping a stop.
@@ -346,6 +484,9 @@ class RoutePlanner:
                 if route.duration_seconds + visiting_seconds <= request.duration_minutes * 60:
                     return self._success(request, selected, route, provenance, warnings, mode)
                 warnings.append("directions_exceeded_budget")
+                if requested_stages(request.query):
+                    # Dropping the park or cafe would violate the user's request.
+                    return unavailable("budget_exceeded")
                 if attempt == 0 and len(selected) > 1:
                     selected = selected[:-1]
                     warnings.append("stop_removed_after_directions_check")
@@ -424,6 +565,14 @@ class RoutePlanner:
             fallback = " Some places were chosen by proximity without a confirmed query match."
         if any(candidate.nearby_fallback for candidate in selected):
             recommendation += fallback
+        stages = requested_stages(request.query)
+        if stages:
+            labels = {
+                "ru": {"coffee": "кофейня", "park": "прогулка в парке или саду"},
+                "kk": {"coffee": "кофехана", "park": "саябақта немесе бақта серуендеу"},
+                "en": {"coffee": "cafe", "park": "park or garden walk"},
+            }[request.language]
+            recommendation = " → ".join(labels[kind] for kind in stages) + ". " + recommendation
         return RoutePlanSuccess(
             start_anchor_id=request.start_anchor_id,
             start_anchor=self.anchors[request.start_anchor_id],

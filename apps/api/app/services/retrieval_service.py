@@ -3,6 +3,7 @@ from app.integrations.ollama import EmbeddingProvider, ProviderError
 from app.repositories.poi_repository import POIRepository
 from app.retrieval.lexical import BM25Index
 from app.retrieval.semantic import SemanticIndex
+from app.retrieval.text import is_pizza_place, requests_pizza
 from app.schemas.rag import RetrievalHit, RetrievalMode, RetrievalResponse, SearchRequest
 
 
@@ -64,6 +65,11 @@ class RetrievalService:
             ranked = reciprocal_rank_fusion(lexical, semantic)
         else:
             ranked = lexical
+        if requests_pizza(request.query):
+            matching_ids = {poi.id for poi in self.repository.records if is_pizza_place(poi)}
+            # Apply before top_k so generic lexical or semantic hits cannot crowd
+            # out places with actual source evidence for the requested food.
+            ranked = [(poi_id, score) for poi_id, score in ranked if poi_id in matching_ids]
         lexical_scores, semantic_scores = dict(lexical), dict(semantic)
         hits = []
         for rank, (poi_id, score) in enumerate(ranked[: request.top_k], start=1):
