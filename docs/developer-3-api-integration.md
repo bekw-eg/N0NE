@@ -4,7 +4,7 @@ Start the service with the commands in [apps/api/README.md](../apps/api/README.m
 Use `http://127.0.0.1:8000` locally and configure `CORS_ORIGINS` to the exact
 frontend origin. Read `/openapi.json` for all types or `/docs` for interactive
 requests. JSON is UTF-8; use actual OSM IDs instead of deriving IDs from names.
-There is no raw user-GPS input field or route-planning endpoint in this release.
+Route planning starts from a catalog anchor; there is no raw user-GPS input field.
 
 ## POI lookup
 
@@ -103,9 +103,124 @@ Show `osm_source_only` status and retrieval timestamp where freshness matters.
 
 Do not turn a preference query into a verified badge (Wi-Fi, quiet, cozy, indoor).
 Do not display “open now,” walking distance/time or a reachable-from-user claim
-from these results. Those checks belong to future integrations. Treat center
+from retrieval/RAG alone. Use the route endpoint below for ORS graph metrics from
+a public anchor. Treat center
 coordinates as representative points rather than building entrances.
 Avoid putting exact user locations or raw queries in analytics, URL/access logs,
 or error reporting. Backend validation errors omit submitted inputs and provider
 diagnostics; the API intentionally echoes the original query only in successful
 retrieval/RAG responses. CORS is not authentication.
+
+## Walking route planner
+
+Send the natural-language preference query with one of `mega_silk_way`,
+`botanical_garden`, `expo_nur_alem`, `nurzhol_boulevard`. The backend loads
+coordinates exclusively from `shared/anchors.json`. Do not send latitude,
+longitude, a key, `top_k` or other additional fields.
+
+```js
+async function planWalk(apiBase, query, startAnchorId = 'expo_nur_alem') {
+  const response = await fetch(`${apiBase}/api/v1/routes/plan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      start_anchor_id: startAnchorId,
+      duration_minutes: 60,
+      query,
+      round_trip: true,
+      language: 'ru', // 'kk' and 'en' are also supported
+    }),
+  });
+  if (response.status === 422) throw new Error('Check the route form fields');
+  if (response.status === 413) throw new Error('Route request is too large');
+  if (!response.ok) throw new Error(`Route service failed: ${response.status}`);
+  return response.json();
+}
+
+const plan = await planWalk(apiBase, 'Хочу спокойную прогулку возле EXPO');
+// Clear the previous route and stops before displaying this result.
+routeLayer.clearLayers();
+stopLayer.clearLayers();
+recommendationElement.textContent = plan.recommendation;
+warningsElement.textContent = plan.warnings.join('\n'); // Or localize known codes.
+
+if (plan.status === 'no_route') {
+  // Show the localized recommendation and reason; do not draw a substitute line.
+  reasonElement.textContent = plan.reason;
+} else {
+  reasonElement.textContent = '';
+  // Leaflet consumes GeoJSON [longitude, latitude] directly.
+  L.geoJSON(plan.route_geojson).addTo(routeLayer);
+  for (const stop of plan.stops) {
+    const label = document.createElement('span');
+    label.textContent = `${stop.order}. ${stop.name ?? 'Название неизвестно'}`;
+    // Leaflet markers use [latitude, longitude].
+    L.marker([stop.latitude, stop.longitude]).bindTooltip(label).addTo(stopLayer);
+  }
+  timeElement.textContent = `${plan.estimated_total_minutes.toFixed(1)} мин ` +
+    `(пешком ${plan.walking_minutes.toFixed(1)}, посещения ${plan.visiting_minutes})`;
+  distanceElement.textContent = `${(plan.total_distance_meters / 1000).toFixed(2)} км`;
+}
+// Show OSM/ODbL attribution and routing provenance for BOTH outcomes.
+attributionElement.textContent = `${plan.dataset.attribution} (${plan.dataset.license})`;
+const routing = plan.routing_provenance.directions ?? plan.routing_provenance.matrix;
+provenanceElement.textContent = routing
+  ? `${routing.provider} / ${routing.profile} / ${routing.mode} / ${routing.retrieved_at}`
+  : 'Маршрут ORS не получен';
+```
+
+The example assumes Leaflet `L`, initialized `routeLayer`/`stopLayer` groups and
+the named DOM elements. Clear stale time/distance labels along with map layers
+before rendering a new result. In MapLibre, pass `route_geojson` to a GeoJSON
+source and render a line layer. Never rebuild the route by connecting the POIs.
+The route can start/end at nearby snapped graph points rather than the exact
+representative OSM coordinates. `round_trip=true` includes the start again at
+the end of the Directions waypoints; it is not an extra POI stop. For `false`,
+the route ends at the last stop.
+
+| Response field | Meaning |
+| --- | --- |
+| `status` | Discriminator: `success` or `no_route`; both return HTTP 200 |
+| `start_anchor_id`, `start_anchor` | Catalog ID and source-backed coordinate/limitations |
+| `requested_duration_minutes`, `round_trip`, `language` | Validated input values |
+| `estimated_total_minutes` | Directions walking time plus planned visit allowances |
+| `walking_minutes`, `total_distance_meters` | Actual validated ORS Directions summary |
+| `visiting_minutes` | Sum of per-stop planned allowances, not measured time |
+| `stops` | 1–3 public POIs, plus `order`, `visiting_minutes`, `visit_duration_source`, `selection_source`, `explanation` |
+| `route_geojson` | Validated ORS FeatureCollection with LineString; use it directly |
+| `recommendation` | Deterministic localized text about the selected stops/limitations |
+| `retrieval_mode` | `lexical` or `hybrid`, including lexical fallback if embedding fails |
+| `routing_provenance.matrix`, `.directions` | Provider/profile/mode, retrieval timestamp, endpoint and original metadata; individually nullable |
+| `dataset` | Original OSM attribution/license, hashes and capture timestamps |
+| `warnings` | Limitations and fallback codes; display safely, including unknown codes |
+
+`no_route` adds `reason`; its `stops=[]`, `route_geojson=null` and all four
+time/distance metrics are `null`. Do not render zero-minute/zero-meter success.
+Reasons are `no_candidates`, `unreachable`, `budget_exceeded`, `ors_unconfigured`,
+`ors_timeout`, `ors_unavailable`, `ors_invalid_response`. `ors_unconfigured` needs
+server configuration; unavailable/timeout responses can offer a manual retry.
+GeoAdapter normalizes live transport timeouts into `ors_unavailable` with
+`ors_transport_error`. Provenance records only responses actually received; a
+failed Directions call can leave Matrix provenance available. A budget failure
+can preserve Directions provenance without returning unusable geometry.
+
+Input duration is an integer 30–180, query nonblank and ≤1000 characters,
+round trip is a boolean (default true), language `ru|kk|en` (default ru).
+No automatic request loop is recommended: each plan may make one Matrix and
+two Directions calls, with up to three provider HTTP attempts per call.
+
+Show `nearby_fallback_not_query_match` prominently: these real places were
+chosen by proximity because local retrieval was sparse; their suitability for
+the query is not established. Each stop identifies `retrieval` or
+`nearby_fallback`. `bounding_box_center_not_verified_entrance:<id>` applies to
+the anchor or a selected POI: the point is not an evidenced entrance. Show
+`start_anchor.limitations` as plain text. Preserve `null` source attributes.
+`visit_times_are_planned_estimates`, `preferences_not_verified`,
+`current_opening_status_unknown`, `entrance_and_accessibility_not_verified`
+describe factual limits even after successful routing. ORS may report its own
+warnings in `route_geojson.features[0].properties.warnings`; the top-level
+`ors_directions_warning` signals their presence. OSM/provider text is untrusted.
+
+The planner does not call Qwen or reselect stops through RAG. The greedy route
+is bounded, conservative and not guaranteed optimal. Weather and H3 remain
+separate Developer №1 tasks.

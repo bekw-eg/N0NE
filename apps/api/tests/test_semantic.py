@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -129,13 +130,19 @@ def test_embedding_rest_failures(failure: str) -> None:
         OllamaEmbeddings(Settings(), client).embed(["Rafe"])
 
 
-def test_index_build_deadline(tmp_path: Path) -> None:
+def test_index_build_deadline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # A 1e-12 real timeout can elapse within one Windows monotonic clock tick.
+    # Advance only this module's clock deterministically across the budget.
+    ticks = iter([0.0, 2.0])
+    monkeypatch.setattr(
+        "app.retrieval.semantic.time", SimpleNamespace(monotonic=lambda: next(ticks))
+    )
     with pytest.raises(ProviderError, match="build_timeout"):
         SemanticIndex.load_or_build(
             {"a": "text"},
             "hash",
             RecordingEmbeddings(),
-            Settings(embedding_index_dir=tmp_path, index_build_timeout_seconds=1e-12),
+            Settings(embedding_index_dir=tmp_path, index_build_timeout_seconds=1),
         )
 
 

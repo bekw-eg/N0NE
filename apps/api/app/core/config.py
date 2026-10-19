@@ -3,8 +3,9 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AnyHttpUrl, Field, field_validator
+from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from viberoute_geo.adapter import DEFAULT_BASE_URL
 
 ROOT = Path(__file__).resolve().parents[4]
 
@@ -27,6 +28,22 @@ class Settings(BaseSettings):
     semantic_min_score: float = Field(default=0.35, ge=-1, le=1)
     embedding_index_dir: Path = ROOT / "data/tmp/embeddings"
     context_max_bytes: int = Field(default=24000, ge=1024, le=64000)
+    ors_api_key: SecretStr | None = None
+    ors_base_url: str = DEFAULT_BASE_URL
+    ors_timeout_seconds: float = Field(default=10, ge=1, le=60)
+    route_max_candidates: int = Field(default=10, ge=1, le=10)
+    route_nearby_radius_m: float = Field(default=2500, ge=100, le=10000)
+    route_snap_radius_m: float = Field(default=100, ge=1, le=1000)
+
+    @field_validator("ors_base_url")
+    @classmethod
+    def safe_ors_url(cls, value: str) -> str:
+        from pydantic import HttpUrl
+
+        url = HttpUrl(value)
+        if url.scheme != "https" or url.username or url.password or url.query or url.fragment:
+            raise ValueError("ORS URL must be HTTPS without credentials, query, or fragment")
+        return str(url).rstrip("/")
 
     @field_validator("cors_origins")
     @classmethod
