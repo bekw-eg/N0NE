@@ -1,81 +1,89 @@
-# VibeRoute Web Application (Frontend)
+# VibeRoute frontend
 
-Фронтенд-приложение и интерактивная карта для VibeRoute — интеллектуального генератора персонализированных городских маршрутов по Астане.
+React, Vite, Tailwind и MapLibre. Сохранены три панели, карточки, таймлайн и мобильные вкладки.
 
-Разработано в рамках роли **Developer №3A (Frontend UI & Interactive Map Engineer)**.
+## Локальный запуск
 
-## Архитектура и зоны ответственности
-
-- **Левая панель (Параметры и управление)**:
-  - Выбор каталожного анкора старта (`shared/anchors.json`): Mega Silk Way, EXPO / Nur Alem, Ботанический сад, Бульвар Нуржол.
-  - Ввод естественного запроса/пожеланий к маршруту.
-  - Слайдер длительности прогулки (30–180 минут) и переключатель кольцевого маршрута.
-  - Предоставлены готовые точки расширения для модулей **Developer №3B** (сценарии, фильтры прозрачности, выбор языка `ru|kk|en`).
-- **Центральная панель (Рекомендации и таймлайн)**:
-  - `RecommendationCard.tsx`: отображение названия, категории, адреса, плановой длительности визита, источника подбора (`retrieval` vs `nearby_fallback`), проверенных атрибутов OSM и ссылок на источник.
-  - `RouteTimeline.tsx`: хронологическая последовательность точек маршрута (Старт -> POI 1..N -> Завершение).
-  - Состояния: загрузка (скелетон), ошибка API с рекомендацией, `no_route` с понятным объяснением причины (бюджет времени, недостижимость).
-  - Сводка маршрута: общее время, время пешком, время визитов, суммарная дистанция.
-- **Правая панель (Интерактивная карта MapLibre GL JS)**:
-  - `MapView.tsx`:
-    - Карта Астаны на MapLibre GL JS с темной неоновой темой и автоматическим fallback на OpenStreetMap raster tiles.
-    - Отображение начальной точки (анкора) с пульсирующим маркером.
-    - Нумерованные маркеры POI (#1, #2, #3) с категорией и всплывающими подсказками.
-    - Пешеходная геометрия маршрута (LineString GeoJSON) со стилизованным неоновым свечением.
-    - Отображение зоны доступности / изохроны (Polygon GeoJSON) при наличии данных.
-    - Отображение приблизительного местоположения пользователя через H3-гексагон (без передачи и раскрытия точного GPS).
-    - Автоматический `fitBounds` при смене маршрута и `flyTo` при выборе карточки или точки таймлайна.
-    - Поддержка ресайза экрана (`ResizeObserver`).
-
-## Синхронизация состояний
-
-- Клик по карточке места -> активирует соответствующий маркер на карте и подсвечивает точку в таймлайне.
-- Клик по маркеру на карте -> выбирает соответствующую карточку и фокусирует в списке.
-- Клик по шагу в таймлайне -> фокусирует маркер на карте.
-- При получении нового маршрута устаревшее выделение сбрасывается.
-
-## Интерфейс интеграции для Developer №3B
-
-Developer №3B подключает свой `useVibeRoute` хук / API клиент:
-1. Типы контракта согласованы в [`src/types/api.ts`](src/types/api.ts) и на 100% повторяют Pydantic схемы backend (`apps/api/app/schemas/routes.py`).
-2. Props компонентов:
-   - `MapView`:
-     - `stops: RouteStop[]`
-     - `selectedStopId?: string | null`
-     - `startAnchor?: Anchor | null`
-     - `routeGeoJSON?: RouteGeoJSON | null`
-     - `isochronesGeoJSON?: FeatureCollection | null`
-     - `userH3Cell?: string | null`
-     - `onSelectStop?: (stop: RouteStop) => void`
-     - `onSelectAnchor?: (anchor: Anchor) => void`
-   - `RecommendationCard`:
-     - `stop: RouteStop`
-     - `isSelected?: boolean`
-     - `onSelect?: (stop: RouteStop) => void`
-   - `RouteTimeline`:
-     - `stops: RouteStop[]`
-     - `startAnchor?: Anchor | null`
-     - `roundTrip?: boolean`
-     - `selectedStopId?: string | null`
-     - `onSelectStop?: (stop: RouteStop) => void`
-     - `onSelectAnchor?: (anchor: Anchor) => void`
-     - `walkingMinutes?: number | null`
-     - `totalDistanceMeters?: number | null`
-
-## Запуск и сборка
+Из `apps/api` запустите настоящий FastAPI. ORS-ключ задаётся только серверу:
 
 ```sh
-cd apps/web
-
-# Установка зависимостей (при первом запуске)
-npm install
-
-# Запуск dev-сервера
-npm run dev
-
-# Проверка линтером (oxlint)
-npm run lint
-
-# Сборка production bundle и typecheck
-npm run build
+uv sync --locked --group dev
+uv run python -m uvicorn app.main:app --env-file ../../.env --host 127.0.0.1 --port 8000 --no-access-log
 ```
+
+Корневой `.env` должен содержать `ORS_API_KEY` и при необходимости `ORS_BASE_URL`.
+Для Windows с не-ASCII путём сначала задайте настройки из [backend README](../api/README.md).
+
+В другом терминале, из `apps/web`:
+
+```sh
+npm ci
+npm run dev
+```
+
+Откройте `http://localhost:5173`. В development все запросы идут на `/api/v1/...`
+через [Vite proxy](https://vite.dev/config/server-options.html#server-proxy) к `127.0.0.1:8000`.
+`VITE_API_BASE_URL` в development не используется. Порт занят — Vite завершится,
+а не переключится на другой порт незаметно.
+
+## Production и CORS
+
+При сборке задайте `VITE_API_BASE_URL=https://your-backend.example`.
+Также поддерживается завершающий `/api`. `/api/v1` указывать не нужно.
+HTTP URL, URL с credentials, query, fragment или посторонним путём отклоняются сборкой.
+Пустое значение или `/api` означает same-origin API: настройте HTTPS reverse proxy
+хостинга на FastAPI, сохраняя путь `/api/v1/...`. Vite dev proxy не входит в production build.
+
+На FastAPI задайте `CORS_ORIGINS=["https://your-frontend.example"]` — точный origin
+опубликованного frontend без пути и завершающего `/`. Middleware уже поддерживает
+GET/POST и Content-Type preflight, без credentials и wildcard.
+Для разных доменов оба сервиса должны быть доступны по HTTPS.
+См. [FastAPI CORS](https://fastapi.tiangolo.com/tutorial/cors/).
+
+В переменные `VITE_*` нельзя помещать ключи: они публичны в браузерной сборке.
+ORS вызывается только backend. Пример frontend-конфигурации — [.env.example](.env.example).
+
+## Поведение
+
+- Начальное состояние пустое. «Построить маршрут» вызывает `POST /api/v1/routes/plan`.
+- Успех: настоящая ORS GeoJSON-линия, остановки, расстояние, пешее время,
+  плановые визиты, общий бюджет и warnings из ответа API.
+- `no_route`: объяснение, reason, warnings; геометрия и старые остановки удаляются.
+- Ошибка сети/HTTP: видимое сообщение, повторная отправка доступна.
+- Только «Показать демо» включает пример с пометкой «Демонстрационные данные».
+  Новый запрос всегда обращается к API и сбрасывает демо. Демо-изохрона отсутствует в live-режиме.
+- MapLibre ESM worker явно публикуется Vite как отдельный asset через
+  [setWorkerUrl](https://maplibre.org/maplibre-gl-js/docs/API/functions/setWorkerUrl/),
+  чтобы линия и векторные тайлы загружались в dev и production.
+- Погода запрашивается через `GET /api/v1/weather?start_anchor_id=...` при смене старта.
+  `unknown`, `null`, нулевые значения, предупреждения и ошибки обрабатываются отдельно.
+  Отказ погоды не блокирует планирование.
+- Геолокация запрашивается только кнопкой и разрешением браузера. `h3-js`
+  преобразует GPS в [H3 resolution 8](https://h3geo.org/docs/api/indexing/) на устройстве.
+  `POST /api/v1/privacy/resolve-h3` получает только `{ "h3_cell": "…" }`;
+  используется возвращённый `start_anchor_id`. При отказе/ошибке/неподдерживаемой области
+  остаётся ручной выбор. H3 — приблизительная область, не гарантия анонимности.
+- GPS/H3 не записываются в localStorage, sessionStorage, URL или аналитику.
+  H3 хранится в React state до очистки, ручного выбора или перезагрузки страницы.
+
+## Проверки
+
+```sh
+npm run lint
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
+Перед E2E должны работать Vite :5173 и FastAPI :8000. Тестовые FastAPI :8001/:8002
+запускаются Playwright автоматически: реальные routers/planner/adapter используют
+симулированные upstream ORS/Open-Meteo отказы. Эти серверы не входят в приложение.
+Нужны Python/uv и зависимости backend.
+
+Live ORS проверка явно включается `RUN_LIVE_ORS=1` (ключ остаётся в backend).
+PowerShell: `$env:RUN_LIVE_ORS='1'; npm run test:e2e`.
+Для установленного Chrome вместо скачанного Chromium: `PLAYWRIGHT_CHANNEL=chrome`.
+Без opt-in live-тест пропускается; остальные сценарии проверяют сбои, ручное демо,
+погоду и геолокацию с синтетическими GPS-координатами.
+
+Результаты и границы выполненной проверки: [frontend integration report](../../docs/frontend-integration-report.md).

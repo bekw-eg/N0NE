@@ -207,3 +207,24 @@ export interface RoutePlanRequest {
   round_trip?: boolean;
   language?: Language;
 }
+
+export interface WeatherResponse {
+  status: 'available' | 'unknown';
+  anchor_id: AnchorID;
+  temperature_c: number | null;
+  wind_speed_kmh: number | null;
+  warnings: string[];
+}
+
+export type H3ResolveResponse = {
+  status: 'matched';
+  start_anchor_id: AnchorID;
+  resolution: 8;
+  distance_estimate_m: number;
+  warnings: string[];
+} | {
+  status: 'no_nearby_anchor';
+  reason: 'outside_supported_area' | 'no_anchor_within_radius';
+  resolution: 8;
+  warnings: string[];
+};

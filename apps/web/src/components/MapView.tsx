@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url';
 import * as h3 from 'h3-js';
 import { Layers, ZoomIn, ZoomOut, Compass, MapPin } from 'lucide-react';
 import type { FeatureCollection, GeoJSON } from 'geojson';
 import type { RouteStop, Anchor, RouteGeoJSON } from '../types/api';
 
-
+// Vite relocates the ESM entry; publish its standalone worker as a hashed asset.
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
 interface MapViewProps {
   stops?: RouteStop[];
@@ -23,6 +25,11 @@ interface MapViewProps {
 // Astana Coordinates: Center near EXPO / Nurzhol
 const ASTANA_CENTER: [number, number] = [71.4162, 51.0893];
 const DEFAULT_ZOOM = 13.5;
+
+// Names and categories come from external OSM/API data, never insert raw HTML.
+const escapeHTML = (value: string) => value.replace(/[&<>"']/g, character => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+}[character]!));
 
 // Free Dark Map Style with OSM Fallback
 const DARK_MATTER_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
@@ -72,6 +79,7 @@ export const MapView: React.FC<MapViewProps> = ({
     if (!mapContainerRef.current || mapRef.current) return;
 
     let mapInstance: maplibregl.Map;
+    let usingFallback = false;
 
     try {
       mapInstance = new maplibregl.Map({
@@ -100,13 +108,16 @@ export const MapView: React.FC<MapViewProps> = ({
 
       mapInstance.on('error', (e: { error?: unknown }) => {
         // If vector tiles fail to load (e.g. offline/network), fallback cleanly to OSM raster tiles
-        if (!isMapLoadedRef.current && e.error) {
+        if (!isMapLoadedRef.current && e.error && !usingFallback) {
+          usingFallback = true;
           console.warn('Map style load issue, applying OSM raster fallback:', e.error);
           try {
             mapInstance.setStyle(OSM_FALLBACK_STYLE);
           } catch {
             setMapError('Не удалось загрузить подложку карты');
           }
+        } else if (!isMapLoadedRef.current && e.error && usingFallback) {
+          setMapError('Не удалось загрузить подложку карты');
         }
       });
 
@@ -134,6 +145,7 @@ export const MapView: React.FC<MapViewProps> = ({
         mapRef.current.remove();
         mapRef.current = null;
       }
+      isMapLoadedRef.current = false;
     };
   }, []);
 
@@ -176,7 +188,7 @@ export const MapView: React.FC<MapViewProps> = ({
         const popup = new maplibregl.Popup({ offset: 25, closeButton: false }).setHTML(`
           <div class="text-xs">
             <div class="font-bold text-cyan-400 uppercase tracking-wider text-[10px]">Точка старта</div>
-            <div class="font-semibold text-slate-100 mt-0.5">${startAnchor.name}</div>
+            <div class="font-semibold text-slate-100 mt-0.5">${escapeHTML(startAnchor.name)}</div>
             <div class="text-[10px] text-slate-400 mt-0.5">${
               startAnchor.coordinate_kind === 'mapped_entrance'
                 ? 'Размеченный вход OSM'
@@ -244,9 +256,9 @@ export const MapView: React.FC<MapViewProps> = ({
             <span class="inline-block px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-400 text-[10px] font-bold">#${
               stop.order
             }</span>
-            <span class="text-slate-400 text-[10px] uppercase font-semibold">${stop.category}</span>
+            <span class="text-slate-400 text-[10px] uppercase font-semibold">${escapeHTML(stop.category)}</span>
           </div>
-          <div class="font-bold text-slate-100 mt-1">${stop.name || 'Точка интереса'}</div>
+          <div class="font-bold text-slate-100 mt-1">${escapeHTML(stop.name || 'Точка интереса')}</div>
           ${
             stop.visiting_minutes
               ? `<div class="text-[10px] text-amber-300 mt-1">Оценка визита: ~${stop.visiting_minutes} мин</div>`
@@ -448,8 +460,8 @@ export const MapView: React.FC<MapViewProps> = ({
             });
           }
         }
-      } catch (err) {
-        console.warn('Failed to parse H3 cell:', err);
+      } catch {
+        // Do not log location-sensitive cell values or parsing diagnostics.
       }
     } else {
       if (map.getLayer(outlineLayerId)) map.removeLayer(outlineLayerId);

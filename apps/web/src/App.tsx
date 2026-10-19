@@ -1,4 +1,7 @@
-import React, { useState, useTransition } from 'react';
+import React, { useRef, useState, useTransition } from 'react';
+import { latLngToCell } from 'h3-js';
+import { planRoute, resolveH3 } from './api/client';
+import { WeatherCard } from './components/WeatherCard';
 import {
   Compass,
   Navigation,
@@ -10,7 +13,6 @@ import {
   Info,
   ExternalLink,
   ShieldCheck,
-  Zap,
 } from 'lucide-react';
 
 
@@ -21,39 +23,35 @@ import {
   DEMO_ANCHORS,
   DEMO_ROUTE_PLAN,
   DEMO_ISOCHRONES_GEOJSON,
-  DEMO_NO_ROUTE_PLAN,
 } from './data/fixtures';
 import type {
   Anchor,
   AnchorID,
   RouteStop,
-  RoutePlanSuccess,
-  RoutePlanUnavailable,
   RoutePlanResponse,
   RoutePlanRequest,
 } from './types/api';
 
-// Approximate H3 cell index for Astana EXPO / Mega Silk Way area
-const DEFAULT_ASTANA_H3_CELL = '8820984547fffff';
-
 export const App: React.FC = () => {
   // Mobile Tab State: 'controls' | 'recommendations' | 'map'
-  const [activeTab, setActiveTab] = useState<'controls' | 'recommendations' | 'map'>('recommendations');
+  const [activeTab, setActiveTab] = useState<'controls' | 'recommendations' | 'map'>('controls');
 
-  // Route Planning Inputs (Managed for initial UX, readily connectable to Developer №3B state)
+  // Route planning inputs.
   const [selectedAnchorId, setSelectedAnchorId] = useState<AnchorID>('mega_silk_way');
   const [query, setQuery] = useState('Хочу спокойную прогулку возле парка с кофе');
   const [durationMinutes, setDurationMinutes] = useState<number>(60);
   const [roundTrip, setRoundTrip] = useState<boolean>(true);
 
   // Application State
-  const [planResponse, setPlanResponse] = useState<RoutePlanResponse | null>(DEMO_ROUTE_PLAN);
-  const [selectedStopId, setSelectedStopId] = useState<string | null>(
-    DEMO_ROUTE_PLAN.stops[0]?.id || null
-  );
+  const [planResponse, setPlanResponse] = useState<RoutePlanResponse | null>(null);
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [apiError, setApiError] = useState<string | null>(null);
-  const [isDemoFixture, setIsDemoFixture] = useState<boolean>(true);
+  const [isDemoFixture, setIsDemoFixture] = useState<boolean>(false);
+  const [userH3Cell, setUserH3Cell] = useState<string | null>(null);
+  const [locationMessage, setLocationMessage] = useState<string | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const locationRequest = useRef(0);
 
   const [, startTransition] = useTransition();
 
@@ -73,13 +71,68 @@ export const App: React.FC = () => {
     setSelectedStopId(null);
   };
 
-  // Plan Route Handler (Calls FastAPI backend if available, or falls back to verified fixtures)
+  const clearPlan = () => {
+    setPlanResponse(null);
+    setSelectedStopId(null);
+    setIsDemoFixture(false);
+    setApiError(null);
+  };
+
+  const selectManualAnchor = (anchorId: AnchorID) => {
+    locationRequest.current += 1;
+    setIsLocating(false);
+    setUserH3Cell(null);
+    setLocationMessage(null);
+    setSelectedAnchorId(anchorId);
+    clearPlan();
+  };
+
+  const handleUseLocation = () => {
+    const requestId = ++locationRequest.current;
+    setUserH3Cell(null);
+    if (!navigator.geolocation || !window.isSecureContext) {
+      setLocationMessage('Геолокация недоступна. Выберите точку старта вручную.');
+      return;
+    }
+    setIsLocating(true);
+    setLocationMessage('Ожидание разрешения на геолокацию…');
+    navigator.geolocation.getCurrentPosition(async ({ coords }) => {
+      if (requestId !== locationRequest.current) return;
+      try {
+        // GPS exists only in this callback; only the resolution-8 cell leaves the device.
+        const cell = latLngToCell(coords.latitude, coords.longitude, 8);
+        const result = await resolveH3(cell);
+        if (requestId !== locationRequest.current) return;
+        if (result.status === 'matched') {
+          setSelectedAnchorId(result.start_anchor_id);
+          setUserH3Cell(cell);
+          clearPlan();
+          setLocationMessage(`Старт выбран по приблизительной области H3: около ${result.distance_estimate_m} м по прямой от центра ячейки, не пешее расстояние.`);
+        } else {
+          setLocationMessage('Рядом нет поддерживаемой точки старта. Выберите её вручную.');
+        }
+      } catch {
+        if (requestId === locationRequest.current) setLocationMessage('Не удалось определить точку старта. Выберите её вручную.');
+      } finally {
+        if (requestId === locationRequest.current) setIsLocating(false);
+      }
+    }, (error) => {
+      if (requestId !== locationRequest.current) return;
+      setIsLocating(false);
+      setLocationMessage(error.code === 1
+        ? 'Доступ к геолокации отклонён. Выберите точку старта вручную.'
+        : 'Геолокация недоступна. Выберите точку старта вручную.');
+    }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 0 });
+  };
+
+  // Every submission requests the real backend. Demo is an explicit separate choice.
   const handlePlanRoute = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!query.trim()) return;
+    if (!query.trim() || isLoading || isLocating) return;
 
+    clearPlan();
     setIsLoading(true);
-    setApiError(null);
+    setActiveTab('recommendations');
 
     const payload: RoutePlanRequest = {
       start_anchor_id: selectedAnchorId,
@@ -90,26 +143,7 @@ export const App: React.FC = () => {
     };
 
     try {
-      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-      const res = await fetch(`${apiBase}/api/v1/routes/plan`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        if (res.status === 422) {
-          throw new Error('Проверьте параметры маршрута (длительность от 30 до 180 минут).');
-        }
-        if (res.status === 413) {
-          throw new Error('Слишком длинный поисковый запрос.');
-        }
-        throw new Error(`Ошибка сервера маршрутизации (${res.status}).`);
-      }
-
-      const data: RoutePlanResponse = await res.json();
+      const data = await planRoute(payload);
       setPlanResponse(data);
       setIsDemoFixture(false);
       if (data.status === 'success' && data.stops.length > 0) {
@@ -118,14 +152,7 @@ export const App: React.FC = () => {
         setSelectedStopId(null);
       }
     } catch (err: unknown) {
-      console.warn('Backend API request unavailable, using verified local Astana demo fixtures:', err);
-      // Informative banner that backend is offline and verified Astana demo was retained
-      setApiError(
-        'Сервер FastAPI недоступен на localhost:8000. Включен автономный режим демонстрации (Astana Verified Dataset).'
-      );
-      setPlanResponse(DEMO_ROUTE_PLAN);
-      setIsDemoFixture(true);
-      setSelectedStopId(DEMO_ROUTE_PLAN.stops[0].id);
+      setApiError(err instanceof Error ? err.message : 'Не удалось построить маршрут. Повторите попытку.');
     } finally {
       setIsLoading(false);
     }
@@ -134,16 +161,16 @@ export const App: React.FC = () => {
   // Quick preset triggers for Astana walking vibes
   const handleApplyPreset = (text: string, anchorId: AnchorID, duration: number) => {
     setQuery(text);
-    setSelectedAnchorId(anchorId);
+    selectManualAnchor(anchorId);
     setDurationMinutes(duration);
   };
 
   const isSuccess = planResponse?.status === 'success';
-  const successPlan = isSuccess ? (planResponse as RoutePlanSuccess) : null;
-  const unavailablePlan = !isSuccess && planResponse ? (planResponse as RoutePlanUnavailable) : null;
+  const successPlan = planResponse?.status === 'success' ? planResponse : null;
+  const unavailablePlan = planResponse?.status === 'no_route' ? planResponse : null;
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950 text-slate-100">
+    <div className="flex h-dvh w-full flex-col overflow-hidden bg-slate-950 text-slate-100">
       {/* Top Navigation Bar */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800/80 bg-slate-900/80 px-4 md:px-6 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
@@ -170,8 +197,8 @@ export const App: React.FC = () => {
           {/* H3 Privacy Cell Badge */}
           <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-slate-800 bg-slate-900/60 px-2.5 py-1 text-slate-300">
             <span className="h-2 w-2 rounded-full bg-cyan-400"></span>
-            <span className="text-[11px] text-slate-400">H3 Cell:</span>
-            <span className="font-mono text-[11px] text-cyan-300">{DEFAULT_ASTANA_H3_CELL}</span>
+            <span className="text-[11px] text-slate-400">Старт:</span>
+            <span className="text-[11px] text-cyan-300">{userH3Cell ? 'Приблизительная область H3' : 'Ручной выбор'}</span>
           </div>
 
           {/* Mode Switcher / Demo Notice */}
@@ -182,27 +209,27 @@ export const App: React.FC = () => {
               }`}
             ></span>
             <span className="text-[11px] font-medium text-slate-300">
-              {isDemoFixture ? 'Offline Demo' : 'Live API'}
+              {isDemoFixture ? 'Демонстрационные данные' : apiError ? 'Ошибка API' : planResponse ? 'Ответ API' : 'Ожидание API'}
             </span>
           </div>
 
-          {/* Toggle between demo success and no_route for testing */}
+          {/* Demo requires an explicit user choice. */}
           <button
             type="button"
+            disabled={isLoading || isLocating}
             onClick={() => {
-              if (isSuccess) {
-                setPlanResponse(DEMO_NO_ROUTE_PLAN);
-                setSelectedStopId(null);
+              if (isDemoFixture) {
+                clearPlan();
               } else {
+                selectManualAnchor(DEMO_ROUTE_PLAN.start_anchor_id);
                 setPlanResponse(DEMO_ROUTE_PLAN);
                 setSelectedStopId(DEMO_ROUTE_PLAN.stops[0].id);
+                setIsDemoFixture(true);
               }
             }}
-            title="Переключить состояние ответа (Успех / Маршрут не найден)"
             className="flex items-center gap-1 rounded-lg border border-slate-700/60 bg-slate-800/80 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-700 transition-colors"
           >
-            <Zap className="h-3 w-3 text-cyan-400" />
-            <span className="hidden sm:inline">Тест ответа</span>
+            {isDemoFixture ? 'Выйти из демо' : 'Показать демо'}
           </button>
         </div>
       </header>
@@ -210,14 +237,14 @@ export const App: React.FC = () => {
       {/* Main 3-Column Responsive Work Area */}
       <div className="relative flex flex-1 overflow-hidden">
         {/* ========================================================================= */}
-        {/* 1. LEFT PANEL: CONTROLS & SCENARIO SELECTION (Developer №3A slot for 3B) */}
+        {/* 1. LEFT PANEL: CONTROLS & SCENARIO SELECTION */}
         {/* ========================================================================= */}
         <aside
           className={`flex flex-col border-r border-slate-800/80 bg-slate-950/95 overflow-y-auto z-20 transition-all duration-300 ${
-            activeTab === 'controls' ? 'flex-1 w-full' : 'hidden lg:flex lg:w-80 xl:w-96'
+            activeTab === 'controls' ? 'flex-1 w-full lg:flex-none lg:w-80 xl:w-96' : 'hidden lg:flex lg:w-80 xl:w-96'
           }`}
         >
-          <div className="p-4 sm:p-5 space-y-5">
+          <fieldset disabled={isLoading} className="p-4 sm:p-5 space-y-5 min-w-0">
             {/* Panel Title */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -283,7 +310,9 @@ export const App: React.FC = () => {
                 </label>
                 <select
                   value={selectedAnchorId}
-                  onChange={(e) => setSelectedAnchorId(e.target.value as AnchorID)}
+                  id="start-anchor"
+                  aria-label="Каталожный анкор старта"
+                  onChange={(e) => selectManualAnchor(e.target.value as AnchorID)}
                   className="w-full rounded-xl border border-slate-700/80 bg-slate-900 px-3 py-2 text-xs text-slate-100 outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-colors"
                 >
                   {DEMO_ANCHORS.map((anchor) => (
@@ -302,12 +331,23 @@ export const App: React.FC = () => {
                 </div>
               </div>
 
+              <div className="rounded-xl border border-slate-800 p-3 space-y-2">
+                <button type="button" onClick={handleUseLocation} disabled={isLocating} className="text-xs text-cyan-300 disabled:opacity-50">
+                  {isLocating ? 'Определение точки старта…' : 'Выбрать старт по моей геолокации'}
+                </button>
+                <p className="text-[10px] text-slate-400">Добровольно: GPS преобразуется на устройстве в H3 resolution 8. В API отправляется только ID ячейки; он раскрывает приблизительную область. Местоположение не сохраняется.</p>
+                {locationMessage && <p role="status" className="text-[11px] text-amber-200">{locationMessage}</p>}
+                {userH3Cell && <button type="button" onClick={() => selectManualAnchor(selectedAnchorId)} className="text-[11px] text-cyan-300">Очистить местоположение</button>}
+              </div>
+
               {/* Natural Language Preference Query */}
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1.5">
                   Пожелания к маршруту
                 </label>
                 <textarea
+                  aria-label="Пожелания к маршруту"
+                  maxLength={1000}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   rows={3}
@@ -326,6 +366,7 @@ export const App: React.FC = () => {
                 </div>
                 <input
                   type="range"
+                  aria-label="Длительность"
                   min={30}
                   max={180}
                   step={5}
@@ -355,7 +396,7 @@ export const App: React.FC = () => {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isLoading || !query.trim()}
+                disabled={isLoading || isLocating || !query.trim()}
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-4 py-2.5 text-xs font-semibold text-slate-950 hover:from-cyan-400 hover:to-indigo-500 transition-all shadow-md shadow-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
@@ -372,18 +413,18 @@ export const App: React.FC = () => {
               </button>
             </form>
 
-            {/* Integration slot designated for Developer №3B */}
+            <WeatherCard anchorId={selectedAnchorId} />
+
             <div className="rounded-xl border border-dashed border-slate-800 p-3 bg-slate-950/40">
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400 mb-1">
                 <ShieldCheck className="h-3.5 w-3.5 text-cyan-400" />
-                <span>Зона расширений Developer №3B</span>
+                <span>Приватность местоположения</span>
               </div>
               <p className="text-[10px] text-slate-500 leading-relaxed">
-                Сюда подключаются модули: выбор тонких сценариев, переключение языков (kk/ru/en),
-                индикатор доверия рекомендаций и фильтрация доступности.
+                Ручной выбор всегда доступен. GPS и H3 не сохраняются в браузере, URL или аналитике.
               </p>
             </div>
-          </div>
+          </fieldset>
         </aside>
 
         {/* ========================================================================= */}
@@ -391,7 +432,7 @@ export const App: React.FC = () => {
         {/* ========================================================================= */}
         <main
           className={`flex flex-col border-r border-slate-800/80 bg-slate-950 overflow-y-auto z-10 transition-all duration-300 ${
-            activeTab === 'recommendations' ? 'flex-1 w-full' : 'hidden lg:flex lg:w-96 xl:w-[440px]'
+            activeTab === 'recommendations' ? 'flex-1 w-full lg:flex-none lg:w-96 xl:w-[440px]' : 'hidden lg:flex lg:w-96 xl:w-[440px]'
           }`}
         >
           <div className="p-4 sm:p-5 space-y-4">
@@ -412,13 +453,16 @@ export const App: React.FC = () => {
 
             {/* Error Notification if any */}
             {apiError && (
-              <div className="rounded-xl border border-amber-500/30 bg-amber-950/30 p-3 text-xs text-amber-200 flex items-start gap-2">
+              <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-950/30 p-3 text-xs text-amber-200 flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <p>{apiError}</p>
                 </div>
               </div>
             )}
+
+            {isDemoFixture && <p role="status" className="rounded-xl border border-amber-500 bg-amber-950/60 p-3 text-sm font-semibold text-amber-200">Демонстрационные данные — пример маршрута, не ответ текущего API.</p>}
+            {!isLoading && !planResponse && !apiError && <p className="text-xs text-slate-400">Выберите параметры и нажмите «Построить маршрут».</p>}
 
             {/* Loading Skeleton */}
             {isLoading && (
@@ -445,6 +489,7 @@ export const App: React.FC = () => {
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-800/80 px-2.5 py-1 text-[11px] text-slate-400 font-mono">
                   Причина: {unavailablePlan.reason}
                 </div>
+                {unavailablePlan.warnings.map(warning => <p key={warning} className="text-[10px] text-amber-200">{warning}</p>)}
               </div>
             )}
 
@@ -564,7 +609,8 @@ export const App: React.FC = () => {
         {/* 3. RIGHT PANEL: INTERACTIVE MAP (MapLibre GL JS) */}
         {/* ========================================================================= */}
         <section
-          className={`flex-1 relative h-full w-full bg-slate-950 p-2 sm:p-3 transition-all duration-300 ${
+          aria-label="Карта маршрута"
+          className={`flex-1 min-w-0 relative h-full w-full bg-slate-950 p-2 sm:p-3 transition-all duration-300 ${
             activeTab === 'map' ? 'flex' : 'hidden lg:flex'
           }`}
         >
@@ -573,12 +619,13 @@ export const App: React.FC = () => {
             selectedStopId={selectedStopId}
             startAnchor={isSuccess && successPlan ? successPlan.start_anchor : activeAnchor}
             routeGeoJSON={isSuccess && successPlan ? successPlan.route_geojson : null}
-            isochronesGeoJSON={DEMO_ISOCHRONES_GEOJSON}
-            userH3Cell={DEFAULT_ASTANA_H3_CELL}
+            isochronesGeoJSON={isDemoFixture ? DEMO_ISOCHRONES_GEOJSON : null}
+            userH3Cell={userH3Cell}
             onSelectStop={handleSelectStop}
             onSelectAnchor={handleSelectAnchor}
             className="h-full w-full"
           />
+          {isDemoFixture && <p className="absolute bottom-6 right-6 rounded-lg border border-amber-500 bg-amber-950 px-3 py-2 text-xs text-amber-200">Демонстрационные данные</p>}
         </section>
       </div>
 
