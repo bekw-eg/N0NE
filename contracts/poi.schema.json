@@ -1,0 +1,291 @@
+{
+  "$defs": {
+    "Attribution": {
+      "additionalProperties": false,
+      "properties": {
+        "attribution": {
+          "title": "Attribution",
+          "type": "string"
+        },
+        "license": {
+          "title": "License",
+          "type": "string"
+        },
+        "license_url": {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "title": "License Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "attribution",
+        "license",
+        "license_url"
+      ],
+      "title": "Attribution",
+      "type": "object"
+    },
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "const": "openstreetmap",
+          "default": "openstreetmap",
+          "title": "Source",
+          "type": "string"
+        },
+        "url": {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        },
+        "element_type": {
+          "enum": [
+            "node",
+            "way",
+            "relation"
+          ],
+          "title": "Element Type",
+          "type": "string"
+        },
+        "element_id": {
+          "exclusiveMinimum": 0,
+          "title": "Element Id",
+          "type": "integer"
+        },
+        "osm_version": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Osm Version"
+        },
+        "osm_updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Osm Updated At"
+        },
+        "retrieved_at": {
+          "format": "date-time",
+          "title": "Retrieved At",
+          "type": "string"
+        },
+        "field_tags": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": "Field Tags",
+          "type": "object"
+        }
+      },
+      "required": [
+        "url",
+        "element_type",
+        "element_id",
+        "retrieved_at",
+        "field_tags"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "pattern": "^osm:(node|way|relation):[1-9][0-9]*$",
+      "title": "Id",
+      "type": "string"
+    },
+    "name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Name"
+    },
+    "category": {
+      "enum": [
+        "cafe",
+        "restaurant",
+        "fast_food",
+        "food_court",
+        "library",
+        "cinema",
+        "theatre",
+        "arts_centre",
+        "community_centre",
+        "museum",
+        "gallery",
+        "attraction",
+        "artwork",
+        "viewpoint",
+        "park",
+        "garden",
+        "playground",
+        "mall",
+        "books"
+      ],
+      "title": "Category",
+      "type": "string"
+    },
+    "latitude": {
+      "maximum": 90,
+      "minimum": -90,
+      "title": "Latitude",
+      "type": "number"
+    },
+    "longitude": {
+      "maximum": 180,
+      "minimum": -180,
+      "title": "Longitude",
+      "type": "number"
+    },
+    "coordinate_kind": {
+      "enum": [
+        "osm_node",
+        "bounding_box_center"
+      ],
+      "title": "Coordinate Kind",
+      "type": "string"
+    },
+    "address": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Address"
+    },
+    "opening_hours": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Opening Hours"
+    },
+    "indoor": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Indoor"
+    },
+    "covered": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Covered"
+    },
+    "wheelchair": {
+      "anyOf": [
+        {
+          "enum": [
+            "yes",
+            "no",
+            "limited"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Wheelchair"
+    },
+    "source_url": {
+      "format": "uri",
+      "maxLength": 2083,
+      "minLength": 1,
+      "title": "Source Url",
+      "type": "string"
+    },
+    "retrieved_at": {
+      "format": "date-time",
+      "title": "Retrieved At",
+      "type": "string"
+    },
+    "quality_warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Quality Warnings",
+      "type": "array"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "source": {
+      "$ref": "#/$defs/Attribution"
+    },
+    "verification_status": {
+      "const": "osm_source_only",
+      "default": "osm_source_only",
+      "title": "Verification Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "category",
+    "latitude",
+    "longitude",
+    "coordinate_kind",
+    "address",
+    "opening_hours",
+    "indoor",
+    "covered",
+    "wheelchair",
+    "source_url",
+    "retrieved_at",
+    "quality_warnings",
+    "provenance",
+    "source"
+  ],
+  "title": "PublicPOI",
+  "type": "object"
+}

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "viberoute-api"
+version = "0.1.0"
+description = "Validated POI API and grounded retrieval for VibeRoute"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115,<1", "pydantic>=2.10,<3", "pydantic-settings>=2.7,<3",
+  "uvicorn>=0.34,<1", "httpx>=0.28,<1", "viberoute-data", "viberoute-geo",
+]
+
+[tool.uv.sources]
+viberoute-data = { path = "../../packages/data_pipeline", editable = true }
+viberoute-geo = { path = "../../packages/geo", editable = true }
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1", "mypy>=1.15,<2"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = ["../../packages/data_pipeline/src", "../../packages/geo/src"]
+follow_imports = "silent"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
