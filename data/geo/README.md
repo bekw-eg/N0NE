@@ -24,6 +24,15 @@ provider response, and response hash for each operation. `demo/` contains normal
 GeoJSON, matrix JSON, and the source-backed public anchors. GeoJSON has a
 `viberoute_provenance` member with `mode=live` and the original source metadata.
 
+These historical captures and demo exports retain their original
+`https://api.openrouteservice.org/v2/...` endpoints. They are not evidence of live
+requests to the new `https://api.heigit.org/openrouteservice` API. The adapter pins
+the SHA-256 of each complete capture file to permit these three unchanged fixtures
+in recorded mode with the new default. Request, profile, response-hash, age, and
+geometry checks still apply; replays preserve the original endpoint and timestamp.
+Keep these files unchanged, including their LF line endings. New live captures
+should use a separate directory, such as `data/tmp/geo-live/recordings`.
+
 For an explicit offline replay and response validation, from the repository root:
 
 ```powershell

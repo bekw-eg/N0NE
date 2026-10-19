@@ -25,11 +25,67 @@ def adapter_for(document: object, **kwargs: Any) -> GeoAdapter:
     return GeoAdapter(api_key="SYNTHETIC-SECRET", client=client, now=lambda: NOW, **kwargs)
 
 
+@pytest.mark.parametrize("operation", ["directions", "isochrones", "matrix"])
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        None,
+        "https://api.heigit.org/openrouteservice/",
+        "https://routing.example.test/proxy/openrouteservice/",
+        "https://api.openrouteservice.org",
+    ],
+)
+def test_from_env_uses_default_or_explicit_base_url(
+    monkeypatch: pytest.MonkeyPatch,
+    points: list[GeoPoint],
+    route: dict[str, Any],
+    isochrones: dict[str, Any],
+    matrix: dict[str, Any],
+    operation: str,
+    base_url: str | None,
+) -> None:
+    monkeypatch.setenv("ORS_API_KEY", "SYNTHETIC-SECRET")
+    if base_url is None:
+        monkeypatch.delenv("ORS_BASE_URL", raising=False)
+    else:
+        monkeypatch.setenv("ORS_BASE_URL", base_url)
+    requests = {
+        "directions": DirectionsRequest(locations=points),
+        "isochrones": IsochronesRequest(origin=points[0]),
+        "matrix": MatrixRequest(locations=points),
+    }
+    documents = {"directions": route, "isochrones": isochrones, "matrix": matrix}
+    suffix = f"/v2/{operation}/foot-walking" + ("/geojson" if operation == "directions" else "")
+    expected = (base_url or "https://api.heigit.org/openrouteservice").rstrip("/") + suffix
+    calls: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        assert str(request.url) == expected
+        assert request.headers["Authorization"] == "SYNTHETIC-SECRET"
+        assert "api_key" not in request.url.params
+        assert json.loads(request.content) == requests[operation].payload()
+        return httpx.Response(200, json=documents[operation])
+
+    client_type = httpx.Client
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda **kwargs: client_type(transport=httpx.MockTransport(handle), **kwargs),
+    )
+    result = getattr(GeoAdapter.from_env(), operation)(requests[operation])
+    assert len(calls) == 1
+    assert str(result.provenance.endpoint) == expected
+    assert result.provenance.mode == "live"  # Synthetic test transport only.
+
+
 def test_directions_request_headers_units_and_geometry(
     points: list[GeoPoint], route: dict[str, Any]
 ) -> None:
     def handle(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/v2/directions/foot-walking/geojson"
+        assert str(request.url) == (
+            "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson"
+        )
         assert "api_key" not in request.url.params
         assert request.headers["Authorization"] == "SYNTHETIC-SECRET"
         assert json.loads(request.content) == {
@@ -50,13 +106,19 @@ def test_directions_request_headers_units_and_geometry(
     assert len(result.geojson.features[0].geometry.coordinates) == 3
     assert result.provenance.mode == "live"  # Test transport only, not a real provider call.
     assert result.provenance.profile == "foot-walking"
+    assert str(result.provenance.endpoint) == (
+        "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson"
+    )
 
 
 def test_isochrones_request_is_time_in_seconds(
     points: list[GeoPoint], isochrones: dict[str, Any]
 ) -> None:
     def handle(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/v2/isochrones/foot-walking"
+        assert str(request.url) == (
+            "https://api.heigit.org/openrouteservice/v2/isochrones/foot-walking"
+        )
+        assert request.headers["Authorization"] == "TEST"
         assert json.loads(request.content) == {
             "locations": [[71.4, 51.1]],
             "range": [600, 900],
@@ -91,6 +153,10 @@ def test_rectangular_matrix_uses_requested_indices(
     matrix["destinations"] = [matrix["destinations"][0]]
 
     def handle(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == (
+            "https://api.heigit.org/openrouteservice/v2/matrix/foot-walking"
+        )
+        assert request.headers["Authorization"] == "TEST"
         body = json.loads(request.content)
         assert body["sources"] == ["1"] and body["destinations"] == ["0"]
         assert body["metrics"] == ["duration", "distance"] and body["units"] == "m"
@@ -168,11 +234,14 @@ def test_record_replay_exact_match_integrity_age_and_secret_redaction(
     request = DirectionsRequest(locations=points)
     result = adapter_for(route, recordings_dir=tmp_path).directions(request)
     path = tmp_path / recording_name("directions", request.payload())
+    original = path.read_bytes()
     assert "SYNTHETIC-SECRET" not in path.read_text(encoding="utf-8")
     offline = GeoAdapter(mode="recorded", recordings_dir=tmp_path, now=lambda: NOW)
     replay = offline.directions(request)
     assert replay.geojson == result.geojson
     assert replay.provenance.mode == "recorded" and replay.provenance.retrieved_at == NOW
+    assert replay.provenance.endpoint == result.provenance.endpoint
+    assert path.read_bytes() == original
     with pytest.raises(GeoError) as error:
         offline.directions(DirectionsRequest(locations=points, snap_radius_m=150))
     assert error.value.code == "recording_unavailable"
@@ -187,6 +256,25 @@ def test_record_replay_exact_match_integrity_age_and_secret_redaction(
     with pytest.raises(GeoError) as error:
         offline.directions(request)
     assert error.value.code == "recording_corrupt"
+
+
+def test_untrusted_legacy_recording_requires_explicit_matching_base_url(
+    points: list[GeoPoint], route: dict[str, Any], tmp_path: Path
+) -> None:
+    # Synthetic legacy capture in a temporary directory, never a real provider fixture.
+    legacy_url = "https://api.openrouteservice.org"
+    request = DirectionsRequest(locations=points)
+    adapter_for(route, base_url=legacy_url, recordings_dir=tmp_path).directions(request)
+    original = {path: path.read_bytes() for path in tmp_path.iterdir()}
+    replay = GeoAdapter(
+        mode="recorded", base_url=legacy_url, recordings_dir=tmp_path, now=lambda: NOW
+    ).directions(request)
+    assert replay.provenance.mode == "recorded"
+    assert str(replay.provenance.endpoint).startswith(legacy_url + "/v2/")
+    with pytest.raises(GeoError) as error:
+        GeoAdapter(mode="recorded", recordings_dir=tmp_path, now=lambda: NOW).directions(request)
+    assert error.value.code == "recording_mismatch"
+    assert {path: path.read_bytes() for path in tmp_path.iterdir()} == original
 
 
 def test_invalid_route_is_never_saved(
@@ -204,14 +292,20 @@ def test_no_key_fails_without_network_or_geometry(points: list[GeoPoint]) -> Non
     assert error.value.code == "configuration_missing"
 
 
-@pytest.mark.parametrize("status", [401, 403, 429, 400, 503, 302])
-def test_provider_errors_are_controlled_and_bounded(points: list[GeoPoint], status: int) -> None:
+@pytest.mark.parametrize("status", [401, 403, 429, 400, 502, 503, 504, 302])
+def test_provider_errors_are_controlled_and_bounded(
+    points: list[GeoPoint], status: int, caplog: pytest.LogCaptureFixture
+) -> None:
     requests: list[httpx.Request] = []
     sleeps: list[float] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        return httpx.Response(status, json={"error": {"code": 2010, "message": "SYNTHETIC-SECRET"}})
+        return httpx.Response(
+            status,
+            json={"error": {"code": 2010, "message": "SYNTHETIC-SECRET"}},
+            headers={"Location": "https://api.openrouteservice.org/v2/directions/foot-walking"},
+        )
 
     with httpx.Client(transport=httpx.MockTransport(handle)) as client:
         with pytest.raises(GeoError) as error:
@@ -220,7 +314,13 @@ def test_provider_errors_are_controlled_and_bounded(points: list[GeoPoint], stat
             )
     assert "SYNTHETIC-SECRET" not in str(error.value)
     assert error.value.status == status and error.value.provider_code == 2010
-    assert len(requests) == (3 if status in {429, 503} else 1)
+    assert len(requests) == (3 if status in {429, 502, 503, 504} else 1)
+    assert all(
+        str(request.url)
+        == "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson"
+        for request in requests
+    )
+    assert "SYNTHETIC-SECRET" not in caplog.text
 
 
 def test_retry_after_is_capped(points: list[GeoPoint], route: dict[str, Any]) -> None:
@@ -254,6 +354,11 @@ def test_transport_failure_never_returns_a_straight_line(points: list[GeoPoint])
             )
     assert error.value.code == "transport_error" and len(calls) == 3
     assert "SYNTHETIC-SECRET" not in str(error.value)
+    assert all(
+        str(request.url)
+        == "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson"
+        for request in calls
+    )
 
 
 @pytest.mark.parametrize("document", [[], {"error": {"code": 1}}, {"features": float("nan")}])
@@ -288,8 +393,8 @@ def test_invalid_ranges_rejected(points: list[GeoPoint], ranges: tuple[int, ...]
 
 def test_base_url_cannot_expose_a_key_in_url() -> None:
     for url in (
-        "http://api.openrouteservice.org",
-        "https://api.openrouteservice.org?api_key=secret",
+        "http://api.heigit.org/openrouteservice",
+        "https://api.heigit.org/openrouteservice?api_key=secret",
         "https://user:secret@example.com",
     ):
         with pytest.raises(ValueError):

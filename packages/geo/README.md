@@ -42,7 +42,11 @@ print(route.duration_seconds, route.distance_meters)
 ```
 
 Set `ORS_API_KEY` in the process environment. The optional `ORS_BASE_URL` defaults
-to `https://api.openrouteservice.org`. A local `.env` can be loaded explicitly with
+to `https://api.heigit.org/openrouteservice`. Directions, isochrones, and matrix
+paths append `/v2/...` to that base; do not add another `/openrouteservice` segment.
+Explicit overrides remain supported, including a trailing slash. Update any old
+`ORS_BASE_URL` in your deployment or local `.env`, or remove it to use the new default.
+A local `.env` can be loaded explicitly with
 `uv run --env-file .env ...`; the adapter does not load files implicitly. The real
 key belongs in the ignored `.env`; `.env.example` contains only empty configuration.
 Keys travel in the Authorization header. URLs require HTTPS without credentials,
@@ -92,7 +96,7 @@ two project areas can be added after their anchor/entrance evidence is collected
 The smoke CLI accepts public anchor IDs, not a user GPS pair. With a configured key:
 
 ```powershell
-uv run --project packages/geo --env-file .env python scripts/geo_smoke.py --recordings-dir data/geo/recordings --output-dir data/geo/demo
+uv run --project packages/geo --env-file .env python scripts/geo_smoke.py --recordings-dir data/tmp/geo-live/recordings --output-dir data/tmp/geo-live/demo
 ```
 
 For an offline demo using the checked-in real ORS responses:
@@ -107,6 +111,19 @@ the sanitized provider response. Only successfully validated responses are saved
 Offline mode validates the request, endpoint, hash, age, and response structure
 again. A modified origin, destination, radius, or matrix selection cannot reuse an
 unrelated response. No live failure silently switches into recorded mode.
+
+The three checked-in captures from PR #2 were retrieved from
+`https://api.openrouteservice.org` before this migration. Their original bytes,
+response hashes, timestamps, endpoints, and demo provenance are retained. With
+the new default base URL, recorded mode accepts only these three unchanged legacy
+captures, pinned by the SHA-256 of each complete file in the adapter. Exact request,
+profile, response-hash, age, and geometry checks still apply. Replays keep the
+legacy endpoint and original retrieval time and are always labeled `recorded`.
+Changing any capture bytes invalidates this compatibility, even if the response
+hash is recomputed. Arbitrary legacy recordings and custom base URLs still require
+an exact endpoint match. This exception never makes an HTTP request and never
+falls back to the old service. Capture new live responses in a separate directory,
+as above, to preserve these historical fixtures.
 
 The default maximum recording age is 24 hours; future timestamps beyond five
 minutes are rejected. For a deliberate historical demo, pass
@@ -125,6 +142,7 @@ checked-in responses with a fixed capture-time clock and forbid network access.
 
 Provider references:
 
+- [Official HeiGIT endpoint migration](https://ask.openrouteservice.org/t/deprecating-api-openrouteservice-org-in-favour-of-api-heigit-org/7912)
 - [Directions request and return types](https://giscience.github.io/openrouteservice/api-reference/endpoints/directions/requests-and-return-types)
 - [Isochrones](https://giscience.github.io/openrouteservice/api-reference/endpoints/isochrones/)
 - [Matrix units, indexing, and metrics](https://giscience.github.io/openrouteservice/api-reference/endpoints/matrix/)

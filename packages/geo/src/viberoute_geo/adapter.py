@@ -31,11 +31,20 @@ from .models import (
 )
 
 LOGGER = logging.getLogger(__name__)
-DEFAULT_BASE_URL = "https://api.openrouteservice.org"
+DEFAULT_BASE_URL = "https://api.heigit.org/openrouteservice"
 SUFFIXES: dict[Operation, str] = {
     "directions": "/v2/directions/foot-walking/geojson",
     "isochrones": "/v2/isochrones/foot-walking",
     "matrix": "/v2/matrix/foot-walking",
+}
+# Only these complete, unchanged captures from PR #2 may cross the endpoint
+# migration in recorded mode. Pinning the entire file also protects its original
+# request, endpoint, retrieval time and metadata, not just the response body.
+_HISTORICAL_BASE_URL = "https://api.openrouteservice.org"
+_HISTORICAL_RECORDING_SHA256: dict[Operation, str] = {
+    "directions": "3b69485ca9320faffbca8eb7f21ebeef938ccf0188569b2d730f22f42637c3fa",
+    "isochrones": "9a98c59219fe6c52c7f8918c65b15ea0b24af5b8628aa2be63f64b95dcdb1250",
+    "matrix": "ffcc6ee1d935cc11cc53018051217f8bad3fc83a63bafac4cc893346ffdf15ad",
 }
 
 
@@ -132,15 +141,22 @@ class GeoAdapter:
         assert self._recordings_dir is not None
         path = self._recordings_dir / recording_name(operation, payload)
         try:
-            capture = GeoCapture.model_validate_json(path.read_bytes())
+            contents = path.read_bytes()
+            capture = GeoCapture.model_validate_json(contents)
         except (OSError, ValueError) as exc:
             raise GeoError(
                 "recording_unavailable", "No valid recorded ORS response for this exact request"
             ) from exc
+        historical_match = (
+            self._mode == "recorded"
+            and self._base_url == DEFAULT_BASE_URL
+            and str(capture.endpoint) == _HISTORICAL_BASE_URL + SUFFIXES[operation]
+            and hashlib.sha256(contents).hexdigest() == _HISTORICAL_RECORDING_SHA256.get(operation)
+        )
         if (
             capture.operation != operation
             or capture.request != payload
-            or str(capture.endpoint) != self._endpoint(operation)
+            or (str(capture.endpoint) != self._endpoint(operation) and not historical_match)
         ):
             raise GeoError("recording_mismatch", "Recorded ORS request or endpoint does not match")
         try:

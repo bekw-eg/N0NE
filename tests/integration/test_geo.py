@@ -1,18 +1,21 @@
 """Offline integration against actual ORS captures, not synthetic geometry."""
 
+import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, NoReturn
 
 import httpx
 import pytest
 from viberoute_geo import cli
+from viberoute_geo.adapter import canonical
 from viberoute_geo.models import GeoCapture
 
 from apps.api.app.integrations.geo_adapter import (
     DirectionsRequest,
     GeoAdapter,
+    GeoError,
     IsochronesRequest,
     MatrixRequest,
 )
@@ -35,6 +38,7 @@ def no_network(*args: Any, **kwargs: Any) -> NoReturn:
 
 def test_backend_facade_replays_all_real_services(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(httpx, "Client", no_network)
+    original = {path: path.read_bytes() for path in RECORDINGS.glob("*.json")}
     catalog = cli.AnchorCatalog.model_validate_json(CATALOG.read_bytes())
     points = [anchor.location for anchor in catalog.anchors]
     adapter = GeoAdapter(mode="recorded", recordings_dir=RECORDINGS, now=capture_time)
@@ -49,6 +53,108 @@ def test_backend_facade_replays_all_real_services(monkeypatch: pytest.MonkeyPatc
     assert matrix.data.durations[1][0] is not None
     assert matrix.data.sources[0] is not None
     assert "openrouteservice" in route.provenance.metadata["attribution"].lower()
+    for result, operation in zip(
+        (route, areas, matrix), ("directions", "isochrones", "matrix"), strict=True
+    ):
+        path = next(RECORDINGS.glob(f"{operation}-*.json"))
+        capture = GeoCapture.model_validate_json(original[path])
+        assert result.provenance.endpoint == capture.endpoint
+        assert str(result.provenance.endpoint).startswith("https://api.openrouteservice.org/v2/")
+        assert result.provenance.retrieved_at == capture.retrieved_at
+        assert result.provenance.metadata == capture.response.get("metadata", {})
+    assert {path: path.read_bytes() for path in RECORDINGS.glob("*.json")} == original
+
+
+@pytest.mark.parametrize(
+    "change", ["endpoint", "request", "operation", "profile", "retrieved_at", "response", "hash"]
+)
+def test_historical_compatibility_rejects_modified_capture(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, change: str
+) -> None:
+    monkeypatch.setattr(httpx, "Client", no_network)
+    path = next(RECORDINGS.glob("directions-*.json"))
+    capture = json.loads(path.read_bytes())
+    if change == "endpoint":
+        capture["endpoint"] = "https://api.openrouteservice.org/v2/directions/driving-car/geojson"
+    elif change == "request":
+        capture["request"]["radiuses"] = [150, 150]
+    elif change == "operation":
+        capture["operation"] = "matrix"
+    elif change == "profile":
+        capture["profile"] = "driving-car"
+    elif change == "retrieved_at":
+        capture["retrieved_at"] = (capture_time() + timedelta(seconds=1)).isoformat()
+    elif change == "response":
+        capture["response"]["metadata"]["attribution"] = "TAMPERED"
+        # Even a matching recomputed body hash cannot authorize a changed legacy envelope.
+        capture["response_sha256"] = hashlib.sha256(canonical(capture["response"])).hexdigest()
+    else:
+        capture["response_sha256"] = "0" * 64
+    target = tmp_path / path.name
+    target.write_text(json.dumps(capture), encoding="utf-8")
+    original = target.read_bytes()
+    catalog = cli.AnchorCatalog.model_validate_json(CATALOG.read_bytes())
+    request = DirectionsRequest(locations=[anchor.location for anchor in catalog.anchors])
+    with pytest.raises(GeoError) as error:
+        GeoAdapter(mode="recorded", recordings_dir=tmp_path, now=capture_time).directions(request)
+    assert error.value.code in {"recording_mismatch", "recording_unavailable"}
+    assert target.read_bytes() == original
+
+
+@pytest.mark.parametrize("offset", [timedelta(days=2), timedelta(minutes=-6)])
+def test_historical_compatibility_keeps_age_checks(
+    monkeypatch: pytest.MonkeyPatch, offset: timedelta
+) -> None:
+    monkeypatch.setattr(httpx, "Client", no_network)
+    catalog = cli.AnchorCatalog.model_validate_json(CATALOG.read_bytes())
+    request = DirectionsRequest(locations=[anchor.location for anchor in catalog.anchors])
+    with pytest.raises(GeoError) as error:
+        GeoAdapter(
+            mode="recorded", recordings_dir=RECORDINGS, now=lambda: capture_time() + offset
+        ).directions(request)
+    assert error.value.code == "recording_stale"
+
+
+def test_historical_compatibility_does_not_override_custom_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(httpx, "Client", no_network)
+    catalog = cli.AnchorCatalog.model_validate_json(CATALOG.read_bytes())
+    request = DirectionsRequest(locations=[anchor.location for anchor in catalog.anchors])
+    with pytest.raises(GeoError) as error:
+        GeoAdapter(
+            mode="recorded",
+            base_url="https://routing.example.test/openrouteservice",
+            recordings_dir=RECORDINGS,
+            now=capture_time,
+        ).directions(request)
+    assert error.value.code == "recording_mismatch"
+
+
+def test_live_failure_does_not_use_historical_recordings() -> None:
+    catalog = cli.AnchorCatalog.model_validate_json(CATALOG.read_bytes())
+    request = DirectionsRequest(locations=[anchor.location for anchor in catalog.anchors])
+    original = {path: path.read_bytes() for path in RECORDINGS.glob("*.json")}
+    calls: list[httpx.Request] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        assert str(request.url) == (
+            "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson"
+        )
+        return httpx.Response(503)
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        with pytest.raises(GeoError) as error:
+            GeoAdapter(
+                api_key="SYNTHETIC-SECRET",
+                client=client,
+                recordings_dir=RECORDINGS,
+                sleep=lambda _: None,
+            ).directions(request)
+    assert error.value.code == "provider_error" and error.value.status == 503
+    assert len(calls) == 3
+    assert {path: path.read_bytes() for path in RECORDINGS.glob("*.json")} == original
 
 
 def test_offline_cli_exports_source_geometry_and_mode(
