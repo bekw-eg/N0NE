@@ -8,9 +8,22 @@ uv sync --python 3.11
 uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
+On Windows with Python 3.11 and a non-ASCII checkout path, set these from
+`apps/api` in PowerShell before running the commands above:
+
+```powershell
+$env:PYTHONUTF8='1'
+$env:PYTHONPATH='.;../../packages/geo/src;../../packages/data_pipeline/src;../..'
+```
+
+Python 3.11 reads editable-install `.pth` paths using the Windows locale even
+in UTF-8 mode. Explicit source paths avoid this import problem; UTF-8 mode also
+keeps console output and subprocess text consistent.
+
 The source checkout must include `data/astana/pois.json`. Local editable dependencies
-resolve from `packages/data_pipeline` and `packages/geo`. No Overpass, ORS, secret,
-or internet access is needed at runtime. Startup fails clearly if Dataset validation
+resolve from `packages/data_pipeline` and `packages/geo`. POI lookup and lexical
+retrieval need no external service. Route planning needs ORS and a server-side key.
+Startup fails clearly if Dataset validation
 fails; the file is loaded once and indexed by unique ID. Restart to load a new snapshot.
 No modifications to the dataset or geographic packages are made by this backend.
 
@@ -80,8 +93,9 @@ uv run ruff format --check .
 uv run mypy app
 ```
 
-Tests use the committed 497 real POIs and no network. The existing `geo_adapter.py`
-facade stays available for a future planner; POI search does not call ORS.
+Tests use the committed 497 real POIs and no network. Route tests inject a fake
+GeoAdapter or HTTP MockTransport; their synthetic geometry is only a test fixture.
+POI search does not call ORS.
 
 ## Retrieval and local Qwen
 
@@ -165,3 +179,92 @@ For a reproducible model-free smoke set `LLM_PROVIDER=disabled` and
 hybrid retrieval and grounded Kazakh output, returns 0 on success, 1 on failure,
 and 2 when skipped because a model/service is unavailable. Mock unit tests never
 use the network; real-model success is reported separately.
+
+## Walking route planner
+
+`POST /api/v1/routes/plan` accepts an anchor ID, never user GPS coordinates:
+
+```sh
+curl -X POST http://127.0.0.1:8000/api/v1/routes/plan \
+  -H 'Content-Type: application/json' \
+  -d '{"start_anchor_id":"expo_nur_alem","duration_minutes":60,"query":"Хочу спокойную прогулку возле EXPO","round_trip":true,"language":"ru"}'
+```
+
+Set `ORS_API_KEY` in the server environment, or load a local ignored `.env`
+explicitly with `uv run uvicorn app.main:app --env-file ../../.env --no-access-log`.
+Never send the key from the frontend. No key is needed to start the API; the
+planner returns `status=no_route`, `reason=ors_unconfigured` when it is missing.
+The anchor catalog is loaded from `shared/anchors.json` at startup.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `ORS_API_KEY` | unset | Server-side credential, stored as `SecretStr` |
+| `ORS_BASE_URL` | `https://api.heigit.org/openrouteservice` | HTTPS provider base URL |
+| `ORS_TIMEOUT_SECONDS` | `10` | Per HTTP operation timeout, 1–60 s; connect timeout ≤5 s |
+| `ROUTE_MAX_CANDIDATES` | `10` | 1–10 POIs passed to Matrix, plus the start |
+| `ROUTE_NEARBY_RADIUS_M` | `2500` | Straight-line filtering radius, 100–10000 m |
+| `ROUTE_SNAP_RADIUS_M` | `100` | Maximum accepted snapping distance, 1–1000 m |
+
+The four IDs are `mega_silk_way`, `botanical_garden`, `expo_nur_alem`, and
+`nurzhol_boulevard`. Duration must be a JSON integer from 30 through 180;
+`round_trip` a JSON boolean (default `true`); query nonblank, ≤1000 characters;
+language `ru|kk|en` (default `ru`). Extra fields and raw GPS are rejected with 422.
+The existing 16 KiB body limit applies.
+
+Planning reuses RetrievalService (hybrid when enabled, lexical on embedding
+failure), then filters geographically. If fewer than three local hits exist,
+at most three total candidates are filled from the nearest real POIs, with
+explicit `nearby_fallback` selection and warnings. Source text is never executed
+or fed into generation. No LLM is required or called by the planner.
+
+Directed ORS Matrix edges determine reachability and greedy selection of at
+most three stops. Missing durations/distances, unsnapped points and excessive
+snap offsets cannot form a leg. Each selection reserves visits and, for a round
+trip, the return leg. Final ORS Directions geometry and summary determine public
+walking time/distance. Directions waypoints must match the requested locations
+within the configured snap radius (plus 1 m tolerance). If the final duration
+exceeds the budget, the last stop is removed and Directions is tried once more.
+A remaining overrun or any provider failure yields `no_route`, never a straight
+line or Haversine walking estimate. The heuristic is conservative and does not
+guarantee an optimal route or discover every feasible stop sequence.
+
+Each plan makes ≤1 Matrix and ≤2 Directions adapter calls. The unchanged
+GeoAdapter retries transport/429/502/503/504 failures up to three attempts per
+call, so ≤9 HTTP attempts; retry backoff/Retry-After can add up to 60 s per call.
+This is a per-plan bound, not a global rate limiter. Matrix timeouts are normalized
+by the adapter to `ors_unavailable` plus `ors_transport_error`; directly raised
+timeouts produce `ors_timeout`. Provider diagnostics and secrets are not returned.
+
+`success` includes real POI IDs, ordered stops, complete OSM provenance, original
+validated ORS GeoJSON and both Matrix/Directions provenance. `no_route` is HTTP
+200 with an explicit reason and localized recommendation; its geometry and all
+time/distance fields are `null`, and stops are empty. See the
+[frontend guide](../../docs/developer-3-api-integration.md#walking-route-planner)
+for `fetch()`, mapping and error handling. `/docs` describes the discriminated
+response union. Invalid requests return 422; oversized bodies return 413.
+
+Visit allowances by source category (minutes, not measured durations):
+
+| Minutes | Categories |
+| --- | --- |
+| 5 | artwork, viewpoint |
+| 10 | fast_food, community_centre, attraction, park, garden, playground, books |
+| 15 | cafe, food_court, library, cinema, theatre, arts_centre, gallery, mall |
+| 20 | restaurant, museum |
+
+These allowances do not include a whole cinema/theatre performance and do not
+promise admission. Unknown hours/accessibility remain `null`. Bounding-box
+centers (including EXPO and Botanical Garden anchors) are not verified entrances;
+the corresponding IDs appear in warnings. ORS confirms a graph path, not current
+opening, legal entry, wheelchair access, quietness or Wi-Fi. Weather and H3 are
+separate work and are not implemented here.
+
+Optional live smoke (separate from unit tests; requires `ORS_API_KEY`):
+
+```sh
+uv run python scripts/routes_smoke.py
+```
+
+It makes one plan through the real adapter, validates geometry/budget/source IDs
+and prints only non-secret summary metrics. Exit 0 means a live route passed;
+1 means failure or `no_route`; 2 means skipped because no key was available.

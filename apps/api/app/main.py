@@ -8,12 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.body_limit import BodyLimitMiddleware
 from app.core.config import Settings
 from app.core.errors import install_error_handlers
+from app.integrations.geo_adapter import GeoAdapter
 from app.integrations.ollama import EmbeddingProvider, LLMProvider, OllamaEmbeddings, OllamaLLM
 from app.repositories.poi_repository import POIRepository
-from app.routers import health, pois, retrieval
+from app.routers import health, pois, retrieval, routes
 from app.services.poi_service import POIService
 from app.services.rag_service import RAGService
 from app.services.retrieval_service import RetrievalService
+from app.services.route_planner import RoutePlanner, WalkingAdapter
 
 
 def create_app(
@@ -21,6 +23,7 @@ def create_app(
     repository: POIRepository | None = None,
     embedding_provider: EmbeddingProvider | None = None,
     llm_provider: LLMProvider | None = None,
+    geo_adapter: WalkingAdapter | None = None,
 ) -> FastAPI:
     config = settings or Settings()
 
@@ -28,7 +31,15 @@ def create_app(
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         loaded = repository or POIRepository.load(config.poi_dataset_path)
         application.state.poi_service = POIService(loaded)
-        with httpx.Client(trust_env=False) as client:
+        with (
+            httpx.Client(trust_env=False) as client,
+            httpx.Client(
+                timeout=httpx.Timeout(
+                    config.ors_timeout_seconds, connect=min(5, config.ors_timeout_seconds)
+                ),
+                trust_env=False,
+            ) as geo_client,
+        ):
             embedding = embedding_provider
             if embedding is None and config.semantic_enabled:
                 embedding = OllamaEmbeddings(config, client)
@@ -38,6 +49,16 @@ def create_app(
             search = RetrievalService(loaded, config, embedding)
             application.state.retrieval_service = search
             application.state.rag_service = RAGService(search, config, llm)
+            walking = (
+                geo_adapter
+                if geo_adapter is not None
+                else GeoAdapter(
+                    api_key=config.ors_api_key.get_secret_value() if config.ors_api_key else None,
+                    base_url=config.ors_base_url,
+                    client=geo_client,
+                )
+            )
+            application.state.route_planner = RoutePlanner(search, walking, config)
             yield
 
     application = FastAPI(title="VibeRoute POI API", version="0.1.0", lifespan=lifespan)
@@ -53,6 +74,7 @@ def create_app(
     application.include_router(health.router)
     application.include_router(pois.router)
     application.include_router(retrieval.router)
+    application.include_router(routes.router)
     return application
 
 
