@@ -1,0 +1,78 @@
+[
+  {
+    "status": "available",
+    "anchor_id": "expo_nur_alem",
+    "temperature_c": 10.3,
+    "apparent_temperature_c": 5.2,
+    "precipitation_mm": 0.0,
+    "precipitation_probability_percent": 0.0,
+    "wind_speed_kmh": 21.0,
+    "weather_code": 3,
+    "timezone": "Asia/Almaty",
+    "observed_at": "2026-10-19T22:45:00+05:00",
+    "forecast_valid_at": "2026-10-19T23:00:00+05:00",
+    "fetched_at": "2026-10-19T22:50:35.946573+05:00",
+    "source": "open-meteo",
+    "cache_status": "miss",
+    "warnings": [
+      "weather_model_estimate_not_station_observation"
+    ]
+  },
+  {
+    "status": "available",
+    "anchor_id": "mega_silk_way",
+    "temperature_c": 10.3,
+    "apparent_temperature_c": 5.2,
+    "precipitation_mm": 0.0,
+    "precipitation_probability_percent": 0.0,
+    "wind_speed_kmh": 21.0,
+    "weather_code": 3,
+    "timezone": "Asia/Almaty",
+    "observed_at": "2026-10-19T22:45:00+05:00",
+    "forecast_valid_at": "2026-10-19T23:00:00+05:00",
+    "fetched_at": "2026-10-19T22:50:36.039230+05:00",
+    "source": "open-meteo",
+    "cache_status": "miss",
+    "warnings": [
+      "weather_model_estimate_not_station_observation"
+    ]
+  },
+  {
+    "status": "available",
+    "anchor_id": "botanical_garden",
+    "temperature_c": 10.2,
+    "apparent_temperature_c": 5.5,
+    "precipitation_mm": 0.0,
+    "precipitation_probability_percent": 0.0,
+    "wind_speed_kmh": 20.1,
+    "weather_code": 3,
+    "timezone": "Asia/Almaty",
+    "observed_at": "2026-10-19T22:45:00+05:00",
+    "forecast_valid_at": "2026-10-19T23:00:00+05:00",
+    "fetched_at": "2026-10-19T22:50:36.133333+05:00",
+    "source": "open-meteo",
+    "cache_status": "miss",
+    "warnings": [
+      "weather_model_estimate_not_station_observation"
+    ]
+  },
+  {
+    "status": "available",
+    "anchor_id": "nurzhol_boulevard",
+    "temperature_c": 10.2,
+    "apparent_temperature_c": 5.5,
+    "precipitation_mm": 0.0,
+    "precipitation_probability_percent": 0.0,
+    "wind_speed_kmh": 20.1,
+    "weather_code": 3,
+    "timezone": "Asia/Almaty",
+    "observed_at": "2026-10-19T22:45:00+05:00",
+    "forecast_valid_at": "2026-10-19T23:00:00+05:00",
+    "fetched_at": "2026-10-19T22:50:36.230146+05:00",
+    "source": "open-meteo",
+    "cache_status": "miss",
+    "warnings": [
+      "weather_model_estimate_not_station_observation"
+    ]
+  }
+]
