@@ -222,5 +222,106 @@ warnings in `route_geojson.features[0].properties.warnings`; the top-level
 `ors_directions_warning` signals their presence. OSM/provider text is untrusted.
 
 The planner does not call Qwen or reselect stops through RAG. The greedy route
-is bounded, conservative and not guaranteed optimal. Weather and H3 remain
-separate Developer №1 tasks.
+is bounded, conservative and not guaranteed optimal. Weather is a separate service
+documented below; the planner does not consume it yet. H3 remains separate work.
+
+## Weather
+
+```js
+async function loadWeather(apiBase, startAnchorId = 'expo_nur_alem') {
+  const params = new URLSearchParams({ start_anchor_id: startAnchorId });
+  const response = await fetch(`${apiBase}/api/v1/weather?${params}`);
+  if (response.status === 422) throw new Error('Выберите зону из каталога');
+  if (!response.ok) throw new Error(`Weather service failed: ${response.status}`);
+  return response.json();
+}
+
+const weather = await loadWeather(apiBase);
+weatherElement.textContent = weather.status === 'unknown'
+  ? 'Погодные данные недоступны'
+  : `Температура: ${weather.temperature_c == null ? 'неизвестна' : `${weather.temperature_c} °C`}; ` +
+    `ветер: ${weather.wind_speed_kmh == null ? 'неизвестен' : `${weather.wind_speed_kmh} км/ч`}`;
+probabilityElement.textContent = weather.precipitation_probability_percent == null
+  ? 'Вероятность осадков неизвестна'
+  : `Вероятность осадков: ${weather.precipitation_probability_percent}% ` +
+    `(за час до ${weather.forecast_valid_at})`;
+weatherTimeElement.textContent =
+  `Текущая модель: ${weather.observed_at ?? 'нет данных'}; получено: ${weather.fetched_at}`;
+weatherWarningsElement.textContent = weather.warnings.join('\n'); // Localize known codes.
+weatherAttributionElement.textContent = 'Weather data by Open-Meteo (open-meteo.com)';
+```
+
+The named DOM elements belong to the frontend. Use `textContent`, clear old values
+when loading/failing, and display a link to https://open-meteo.com/ for attribution.
+Do not send GPS, forecast parameters, or credentials. The same four catalog anchor
+IDs used by route planning are supported; extra query parameters return 422.
+
+| Response field | Meaning |
+| --- | --- |
+| `status` | `available` means at least one usable indicator; `unknown` means none |
+| `anchor_id` | Requested catalog zone |
+| `temperature_c`, `apparent_temperature_c` | Current model °C; individually nullable |
+| `precipitation_mm` | Current model-step amount in mm (typically 15 min); nullable |
+| `precipitation_probability_percent` | 0–100%, probability for the hour ending at `forecast_valid_at`; nullable |
+| `wind_speed_kmh`, `weather_code` | Current km/h and WMO code; nullable |
+| `observed_at` | Timestamp for available current model indicators, never borrowed from hourly forecast |
+| `forecast_valid_at` | End of probability's preceding-hour interval, selected to contain retrieval time |
+| `timezone` | Always `Asia/Almaty`; timestamps include its UTC offset |
+| `fetched_at`, `source` | Fetch completion/attempt time and `open-meteo`; preserved on cache hits |
+| `cache_status` | `miss` for live fetch attempts, `hit` for cached responses |
+| `warnings` | Machine codes for model limitations, missing data, failures and walking heuristics |
+
+`unknown` is an intentional HTTP 200 fallback with all weather indicators,
+`observed_at` and `forecast_valid_at` null; show unavailable, never zero or good
+weather. Partial `available` responses can also contain null current conditions
+or null probability, and the UI must handle each independently. `observed_at` is
+an Open-Meteo model estimate, not a measured weather-station reading.
+At 21:05, probability ending at 22:00 describes the 21:00–22:00 hour, while
+temperature can have its own 21:00 or 21:05 model timestamp. At an exact hour,
+the next interval is selected. Do not label hourly probability as observed rain.
+
+| Warning | Meaning / UI handling |
+| --- | --- |
+| `weather_model_estimate_not_station_observation` | Model output, not a station measurement |
+| `weather_current_incomplete` | One or more current indicators missing; preserve nulls |
+| `weather_hourly_probability_unavailable` | No usable probability for the interval containing fetch time |
+| `weather_conditions_unknown` | No trustworthy weather indicators; show unavailable |
+| `weather_timeout`, `weather_connection_error` | Provider timeout or connection/DNS/protocol failure |
+| `weather_rate_limited` | Provider HTTP 429; avoid automatic rapid retries |
+| `weather_upstream_unavailable` | Provider HTTP 5xx |
+| `weather_http_error` | Other non-success provider status |
+| `weather_invalid_json`, `weather_invalid_response` | Invalid JSON or failed units/value/time/schema validation |
+| `weather_strong_wind` | Wind ≥35 km/h by default |
+| `weather_significant_precipitation` | Current-step precipitation ≥2 mm by default |
+| `weather_low_temperature` | Feels-like ≤0 °C; falls back to air temperature only when feels-like is absent |
+| `weather_high_precipitation_probability` | Selected hourly probability ≥70% by default |
+
+Show unknown future warning codes safely as text. The four walking thresholds are
+server-configured product heuristics, not official danger criteria. Missing data
+and absence of heuristic warnings cannot establish safe or pleasant weather.
+Weather warnings do not modify ORS walking times, geometry or route budgets.
+
+Cache TTL is 10 minutes with at most four entries per process; the forecast hour
+boundary or a now-stale current observation can force earlier refresh. Hits retain
+original evidence/fetch times. Failed refreshes discard old evidence and return
+unknown, cached for 30 seconds. Multiple workers have separate caches. No polling
+loop is needed for the MVP; load on anchor selection and allow manual retry.
+
+For backend integration, use the injected service directly:
+
+```python
+from app.schemas.weather import WeatherResponse
+from app.services.weather_service import WeatherService
+
+def weather_for_plan(service: WeatherService) -> WeatherResponse:
+    return service.get_weather("expo_nur_alem")
+```
+
+`get_weather_service` resolves the shared application instance in FastAPI;
+`create_app(weather_service=...)` accepts a replacement instance for tests.
+Calling this synchronous service from an async route requires a worker thread.
+The current Route Planner is intentionally not wired to it. No RAG or ORS
+dependency is introduced into WeatherService. See
+[weather.schema.json](../contracts/weather.schema.json), `/openapi.json`,
+[the configuration table](../apps/api/README.md#open-meteo-weather) and
+[the official Open-Meteo definitions](https://open-meteo.com/en/docs).

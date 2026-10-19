@@ -1,0 +1,201 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "enum": [
+        "available",
+        "unknown"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "anchor_id": {
+      "enum": [
+        "expo_nur_alem",
+        "mega_silk_way",
+        "botanical_garden",
+        "nurzhol_boulevard"
+      ],
+      "title": "Anchor Id",
+      "type": "string"
+    },
+    "temperature_c": {
+      "anyOf": [
+        {
+          "maximum": 70,
+          "minimum": -100,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Temperature C"
+    },
+    "apparent_temperature_c": {
+      "anyOf": [
+        {
+          "maximum": 70,
+          "minimum": -100,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Apparent Temperature C"
+    },
+    "precipitation_mm": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Precipitation Mm"
+    },
+    "precipitation_probability_percent": {
+      "anyOf": [
+        {
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Precipitation Probability Percent"
+    },
+    "wind_speed_kmh": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Wind Speed Kmh"
+    },
+    "weather_code": {
+      "anyOf": [
+        {
+          "enum": [
+            0,
+            1,
+            2,
+            3,
+            45,
+            48,
+            51,
+            53,
+            55,
+            56,
+            57,
+            61,
+            63,
+            65,
+            66,
+            67,
+            71,
+            73,
+            75,
+            77,
+            80,
+            81,
+            82,
+            85,
+            86,
+            95,
+            96,
+            99
+          ],
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Weather Code"
+    },
+    "timezone": {
+      "const": "Asia/Almaty",
+      "default": "Asia/Almaty",
+      "title": "Timezone",
+      "type": "string"
+    },
+    "observed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Timestamp of Open-Meteo current model conditions, not a station.",
+      "title": "Observed At"
+    },
+    "forecast_valid_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "End of the preceding-hour precipitation probability interval.",
+      "title": "Forecast Valid At"
+    },
+    "fetched_at": {
+      "format": "date-time",
+      "title": "Fetched At",
+      "type": "string"
+    },
+    "source": {
+      "const": "open-meteo",
+      "default": "open-meteo",
+      "title": "Source",
+      "type": "string"
+    },
+    "cache_status": {
+      "default": "miss",
+      "enum": [
+        "hit",
+        "miss"
+      ],
+      "title": "Cache Status",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "status",
+    "anchor_id",
+    "fetched_at"
+  ],
+  "title": "WeatherResponse",
+  "type": "object"
+}

@@ -256,8 +256,9 @@ These allowances do not include a whole cinema/theatre performance and do not
 promise admission. Unknown hours/accessibility remain `null`. Bounding-box
 centers (including EXPO and Botanical Garden anchors) are not verified entrances;
 the corresponding IDs appear in warnings. ORS confirms a graph path, not current
-opening, legal entry, wheelchair access, quietness or Wi-Fi. Weather and H3 are
-separate work and are not implemented here.
+opening, legal entry, wheelchair access, quietness or Wi-Fi. Weather is available
+through the independent service below; the planner does not consume it yet. H3
+remains separate work.
 
 Optional live smoke (separate from unit tests; requires `ORS_API_KEY`):
 
@@ -268,3 +269,83 @@ uv run python scripts/routes_smoke.py
 It makes one plan through the real adapter, validates geometry/budget/source IDs
 and prints only non-secret summary metrics. Exit 0 means a live route passed;
 1 means failure or `no_route`; 2 means skipped because no key was available.
+
+## Open-Meteo weather
+
+```sh
+curl 'http://127.0.0.1:8000/api/v1/weather?start_anchor_id=expo_nur_alem'
+uv run python scripts/weather_smoke.py --all-anchors
+```
+
+This endpoint accepts only the four catalog anchor IDs; unknown IDs, missing IDs
+and extra query fields (including GPS) return 422. Coordinates come exclusively
+from `shared/anchors.json`, loaded once when WeatherService is created. No API key
+is required for this non-commercial MVP. No weather call occurs during startup,
+POI search, RAG, or route planning. Only the explicit weather request calls
+`https://api.open-meteo.com/v1/forecast`. The managed HTTP client closes at shutdown.
+
+`OpenMeteoClient` handles HTTP, timeout and strict upstream validation;
+`WeatherService.get_weather(anchor_id)` returns `WeatherResponse` directly for
+future Route Planner use without HTTP self-calls. FastAPI exposes the same service
+through DI (`get_weather_service`) and `create_app(weather_service=...)` supports
+injected test instances. The existing planner and its ORS times are unchanged.
+
+Current model fields use °C, mm, km/h and WMO codes. `observed_at` identifies the
+current **model estimate**, not a station measurement. Hourly precipitation
+probability uses percent and its own `forecast_valid_at`: the end of the hour
+containing `fetched_at`, since Open-Meteo defines probability over the preceding
+hour. For example, retrieval at 21:05 selects the probability ending at 22:00;
+it is never reported as a 21:00 current measurement. At exactly 22:00 the next
+interval ending at 23:00 is selected. Times include the `Asia/Almaty` offset;
+`tzdata` supplies IANA rules on Windows. Requests ask for five current indicators
+and only hourly probability, over three hourly steps by default.
+
+Successful partial data retain missing indicators as `null`, with warnings.
+If no usable indicator exists or the response is malformed/unavailable, HTTP 200
+returns `status=unknown`, null indicators/timestamps, safe warning codes and the
+fetch-attempt time. NaN/Infinity, numeric strings/booleans, invalid units, WMO codes,
+timezone/offsets, dates and mismatched hourly arrays are rejected. Current model
+data older than two hours or in the future are rejected. A missing or empty hourly
+forecast leaves probability/time null and preserves valid current indicators.
+Provider bodies, URLs and diagnostics never enter the public warnings.
+
+The per-process memory cache uses a monotonic 600-second TTL, capped at four LRU
+entries. Keys include anchor ID, catalog coordinates, fields, units, timezone and
+forecast horizon. Concurrent misses are coalesced by a lock; weather calls for
+different anchors are also serialized in this MVP. Current data freshness and
+the hourly interval boundary can expire an entry before its TTL. Expired entries
+are discarded before refresh; a failed refresh returns unknown, with no stale
+weather fallback. Unknown responses are cached for 30 seconds to avoid retry
+storms. Cache hits retain original `fetched_at` and evidence timestamps. Workers
+have independent caches; there is no persistence or distributed rate limiter.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `WEATHER_TIMEOUT_SECONDS` | `5` | HTTP operation timeout, >0–30 s; connect ≤3 s, no retries |
+| `WEATHER_FORECAST_HOURS` | `3` | 2–6 hourly steps from the current hour |
+| `WEATHER_CACHE_TTL_SECONDS` | `600` | Successful response TTL, >0–3600 s |
+| `WEATHER_FAILURE_TTL_SECONDS` | `30` | Unknown response TTL, >0–60 s |
+| `WEATHER_CACHE_MAX_ENTRIES` | `4` | 1–4 entries per service instance |
+| `WEATHER_WIND_KMH` | `35` | Warn when current wind ≥35 km/h |
+| `WEATHER_PRECIPITATION_MM` | `2` | Warn when current-step precipitation ≥2 mm |
+| `WEATHER_COLD_C` | `0` | Warn when feels-like (or temperature if absent) ≤0 °C |
+| `WEATHER_PRECIPITATION_PROBABILITY` | `70` | Warn when hourly precipitation probability ≥70% |
+
+These configurable thresholds are **product heuristics**, not official hazardous
+weather criteria or a guarantee of walking safety. Current precipitation is the
+amount over the provider's current model step (typically 15 minutes), not an
+hourly total or rain rate. No warning is inferred from a missing indicator.
+Empty warning assessments do not imply good weather. Forecast grid cells can be
+shared by nearby anchors and cannot resolve individual paths. Display
+[Open-Meteo attribution](https://open-meteo.com/) and consult the
+[official forecast definitions](https://open-meteo.com/en/docs).
+
+Public JSON schema: [`contracts/weather.schema.json`](../../contracts/weather.schema.json),
+with drift checks; the endpoint is also generated into `/openapi.json` and `/docs`.
+The frontend guide documents every warning code. All unit tests use HTTP
+MockTransport and injected clocks, without real network or TTL sleeps. The
+optional smoke validates the real endpoint, provenance, all anchors when requested,
+and immediate cache hits, without fixed expected weather; exit 0 means all
+requested anchors passed, 1 means failure/unknown. `--output path.json` records the
+actual responses. A full historical sample is in
+[`examples/weather-live.json`](examples/weather-live.json); never display it as current weather.
