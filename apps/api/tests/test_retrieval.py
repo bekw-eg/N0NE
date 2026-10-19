@@ -9,6 +9,7 @@ from app.integrations.ollama import ProviderError
 from app.main import create_app
 from app.repositories.poi_repository import POIRepository
 from app.retrieval.lexical import BM25Index
+from app.retrieval.text import is_pizza_place
 from app.schemas.rag import SearchRequest
 from app.services.retrieval_service import RetrievalService, reciprocal_rank_fusion
 
@@ -41,6 +42,82 @@ def test_known_poi_rank_and_normalization(repository: POIRepository) -> None:
     index = BM25Index(repository)
     assert index.search("ＲＡＦＥ")[0][0] == "osm:node:1843876259"
     assert index.search("БОТАНИКАЛЫҚ") == index.search("Ботаникалық")
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "хочу пиццу",
+        "Пиццерия",
+        "пиццы",
+        "pizza",
+        "pizzeria",
+        "Хочу пиццу в кафе",
+    ],
+)
+def test_pizza_requests_return_source_matched_food_places(
+    repository: POIRepository,
+    query: str,
+) -> None:
+    search = RetrievalService(repository, Settings(semantic_enabled=False))
+    result = search.search(SearchRequest(query=query, top_k=10))
+    ids = {hit.poi.id for hit in result.results}
+    # Known pizza names in the immutable OSM snapshot, across Russian and English.
+    assert {"osm:node:11900510369", "osm:node:10171453646"} <= ids
+    assert ids <= {
+        "osm:node:5920104185",
+        "osm:node:10171453646",
+        "osm:node:11900510369",
+        "osm:node:12917083082",
+        "osm:node:14100100181",
+    }
+    assert all(
+        hit.poi.category in {"cafe", "restaurant", "fast_food", "food_court"}
+        for hit in result.results
+    )
+
+
+def test_pizza_match_requires_food_name_or_cuisine_evidence(repository: POIRepository) -> None:
+    original = repository.records[0]
+    cafe = original.model_copy(
+        update={
+            "category": "cafe",
+            "name": "Cafe",
+            "tags": {
+                "cuisine": "italian;pizza",
+            },
+        }
+    )
+    assert is_pizza_place(cafe)
+    no_evidence = cafe.model_copy(
+        update={
+            "tags": {
+                "cuisine": "italian",
+                "addr:street": "Pizza Street",
+                "website": "https://pizza.test",
+            }
+        }
+    )
+    assert not is_pizza_place(no_evidence)
+    assert not is_pizza_place(cafe.model_copy(update={"category": "artwork", "name": "Pizza"}))
+
+
+def test_semantic_hits_cannot_replace_explicit_pizza_request(
+    repository: POIRepository,
+    tmp_path: Path,
+) -> None:
+    search = RetrievalService(
+        repository,
+        Settings(
+            semantic_enabled=True,
+            embedding_index_dir=tmp_path,
+        ),
+        FakeEmbeddings(),
+    )
+    result = search.search(SearchRequest(query="Rafe хочу пиццу", top_k=10))
+    assert result.retrieval_mode == "hybrid"
+    assert result.results
+    assert "osm:node:1843876259" not in {hit.poi.id for hit in result.results}
 
 
 def test_retrieval_response_and_nulls(client: TestClient, repository: POIRepository) -> None:

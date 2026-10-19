@@ -440,6 +440,62 @@ def test_nearby_fallback_is_explicit_and_deterministic(
     assert "без подтверждённого соответствия" in first["recommendation"]
 
 
+@pytest.mark.parametrize("query", ["хочу пиццу", "пиццерия", "pizza in a cafe"])
+def test_pizza_route_never_adds_unrelated_nearby_stops(
+    route_client: tuple[TestClient, FakeGeoAdapter],
+    query: str,
+) -> None:
+    client, _ = route_client
+    body = client.post(
+        URL,
+        json=dict(
+            BODY,
+            query=query,
+            start_anchor_id="botanical_garden",
+        ),
+    ).json()
+    assert body["status"] == "success"
+    assert body["stops"]
+    assert {stop["id"] for stop in body["stops"]} <= {
+        "osm:node:10171453646",
+        "osm:node:11900510369",
+        "osm:node:14100100181",
+    }
+    assert all(stop["selection_source"] == "retrieval" for stop in body["stops"])
+    assert "nearby_fallback_not_query_match" not in body["warnings"]
+
+
+@pytest.mark.parametrize("anchor", ["expo_nur_alem", "mega_silk_way"])
+@pytest.mark.parametrize(
+    "language,phrase",
+    [
+        ("ru", "не найдено пиццерии"),
+        ("kk", "пиццерия табылмады"),
+        ("en", "No pizzeria"),
+    ],
+)
+def test_no_nearby_pizzeria_explains_missing_match_without_ors(
+    route_client: tuple[TestClient, FakeGeoAdapter],
+    anchor: str,
+    language: str,
+    phrase: str,
+) -> None:
+    client, fake = route_client
+    body = client.post(
+        URL,
+        json=dict(
+            BODY,
+            query="хочу пиццу",
+            start_anchor_id=anchor,
+            language=language,
+        ),
+    ).json()
+    assert_no_route(body, "no_candidates")
+    assert phrase in body["recommendation"]
+    assert "2500" in body["recommendation"]
+    assert not fake.matrices and not fake.directions_requests
+
+
 @pytest.mark.parametrize(
     "language,phrase",
     [

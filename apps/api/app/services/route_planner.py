@@ -17,6 +17,7 @@ from app.integrations.geo_adapter import (
     MatrixResult,
     RouteResult,
 )
+from app.retrieval.text import requests_pizza
 from app.schemas.poi import Category, PublicPOI
 from app.schemas.rag import Language, RetrievalMode, SearchRequest
 from app.schemas.routes import (
@@ -189,7 +190,7 @@ class RoutePlanner:
                 seen.add(poi.id)
         candidates.sort(key=lambda candidate: (candidate.rank, candidate.poi.id))
         target = min(3, self.settings.route_max_candidates)
-        if len(candidates) < target:
+        if len(candidates) < target and not requests_pizza(request.query):
             nearby = [
                 poi
                 for poi in repository.items
@@ -306,6 +307,17 @@ class RoutePlanner:
         provenance = RoutingProvenance()
 
         def unavailable(reason: NoRouteReason) -> RoutePlanUnavailable:
+            explanation = no_route_explanation(reason, request.language)
+            if reason == "no_candidates" and requests_pizza(request.query):
+                radius = f"{self.settings.route_nearby_radius_m:g}"
+                explanation = {
+                    "ru": f"В данных OSM не найдено пиццерии в пределах {radius} м "
+                    "от выбранного старта. Выберите другую точку старта.",
+                    "kk": f"OSM деректерінде бастапқы нүктеден {radius} м ішінде "
+                    "пиццерия табылмады. Басқа бастапқы нүктені таңдаңыз.",
+                    "en": f"No pizzeria was found in the OSM dataset within {radius} m "
+                    "of the selected start. Choose another starting point.",
+                }[request.language]
             return RoutePlanUnavailable(
                 start_anchor_id=request.start_anchor_id,
                 start_anchor=anchor,
@@ -313,7 +325,7 @@ class RoutePlanner:
                 round_trip=request.round_trip,
                 language=request.language,
                 retrieval_mode=mode,
-                recommendation=no_route_explanation(reason, request.language),
+                recommendation=explanation,
                 reason=reason,
                 warnings=sorted(set(warnings)),
                 routing_provenance=provenance,

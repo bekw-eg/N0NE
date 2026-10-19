@@ -68,6 +68,37 @@ test('live EXPO 60 minutes: Vite proxy → FastAPI → ORS → map', async ({ pa
   await expect(page.locator('main')).toContainText(`${(plan.total_distance_meters / 1000).toFixed(2)} км`);
 });
 
+test('live pizza intent: no substitution at EXPO; real pizzeria from Botanical Garden', async ({ page }, testInfo) => {
+  test.skip(process.env.RUN_LIVE_ORS !== '1', 'Opt in with RUN_LIVE_ORS=1 and a configured backend');
+  await page.goto('/');
+  await page.getByRole('combobox').selectOption('expo_nur_alem');
+  await page.getByRole('textbox').fill('хочу пиццу');
+  let responsePromise = page.waitForResponse(response => response.url().endsWith('/api/v1/routes/plan'));
+  await submit(page);
+  const unavailable = await (await responsePromise).json();
+  expect(unavailable.status).toBe('no_route');
+  expect(unavailable.stops).toEqual([]);
+  expect(unavailable.route_geojson).toBeNull();
+  await expect(page.locator('main')).toContainText('не найдено пиццерии в пределах 2500 м');
+
+  await page.getByRole('combobox').selectOption('botanical_garden');
+  responsePromise = page.waitForResponse(response => response.url().endsWith('/api/v1/routes/plan'));
+  await submit(page);
+  const plan = await (await responsePromise).json();
+  expect(plan.status).toBe('success');
+  expect(plan.routing_provenance.directions.mode).toBe('live');
+  expect(plan.stops.length).toBeGreaterThan(0);
+  for (const stop of plan.stops) {
+    expect(stop.name).toMatch(/pizza|пицца/i);
+    expect(stop.selection_source).toBe('retrieval');
+    await expect(page.locator('main')).toContainText(stop.name);
+  }
+  expect(plan.warnings).not.toContain('nearby_fallback_not_query_match');
+  await expect(page.locator('.maplibregl-marker')).toHaveCount(plan.stops.length + 1);
+  await expect(page.locator('main')).not.toContainText('Категория OSM: artwork');
+  await testInfo.attach('pizza-live-plan.json', { body: JSON.stringify(plan, null, 2), contentType: 'application/json' });
+});
+
 for (const scenario of [
   { port: 8001, reason: 'unreachable' },
   { port: 8002, reason: 'ors_unavailable' },
