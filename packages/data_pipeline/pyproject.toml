@@ -1,0 +1,35 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "viberoute-data"
+version = "0.1.0"
+description = "Source-backed OpenStreetMap POI collection for VibeRoute"
+requires-python = ">=3.11"
+dependencies = ["httpx>=0.28,<1", "pydantic>=2.10,<3"]
+
+[project.scripts]
+viberoute-collect = "viberoute_data.cli:collect_main"
+viberoute-validate = "viberoute_data.cli:validate_main"
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1", "mypy>=1.15,<2"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_typed = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
