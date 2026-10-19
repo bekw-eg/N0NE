@@ -1,0 +1,212 @@
+{
+  "format_version": "1",
+  "operation": "matrix",
+  "profile": "foot-walking",
+  "endpoint": "https://api.heigit.org/openrouteservice/v2/matrix/foot-walking",
+  "retrieved_at": "2026-10-19T16:17:32.890480Z",
+  "request": {
+    "locations": [
+      [
+        71.4107868,
+        51.0887669
+      ],
+      [
+        71.4165705,
+        51.1061652
+      ],
+      [
+        71.4161925,
+        51.089252
+      ],
+      [
+        71.4252821,
+        51.1291028
+      ]
+    ],
+    "sources": [
+      "0",
+      "1",
+      "2",
+      "3"
+    ],
+    "destinations": [
+      "0",
+      "1",
+      "2",
+      "3"
+    ],
+    "metrics": [
+      "duration",
+      "distance"
+    ],
+    "units": "m",
+    "resolve_locations": true
+  },
+  "response": {
+    "durations": [
+      [
+        0.0,
+        1564.93,
+        313.16,
+        3621.84
+      ],
+      [
+        1564.93,
+        0.0,
+        1592.46,
+        2204.53
+      ],
+      [
+        313.16,
+        1592.46,
+        0.0,
+        3590.25
+      ],
+      [
+        3621.84,
+        2204.53,
+        3590.25,
+        0.0
+      ]
+    ],
+    "distances": [
+      [
+        0.0,
+        2173.55,
+        434.97,
+        5030.44
+      ],
+      [
+        2173.55,
+        0.0,
+        2211.79,
+        3061.91
+      ],
+      [
+        434.97,
+        2211.79,
+        0.0,
+        4986.56
+      ],
+      [
+        5030.44,
+        3061.91,
+        4986.56,
+        0.0
+      ]
+    ],
+    "destinations": [
+      {
+        "location": [
+          71.411233,
+          51.088811
+        ],
+        "snapped_distance": 31.54
+      },
+      {
+        "location": [
+          71.416608,
+          51.106236
+        ],
+        "snapped_distance": 8.26
+      },
+      {
+        "location": [
+          71.416699,
+          51.089507
+        ],
+        "snapped_distance": 45.34
+      },
+      {
+        "location": [
+          71.425232,
+          51.129111
+        ],
+        "snapped_distance": 3.63
+      }
+    ],
+    "sources": [
+      {
+        "location": [
+          71.411233,
+          51.088811
+        ],
+        "snapped_distance": 31.54
+      },
+      {
+        "location": [
+          71.416608,
+          51.106236
+        ],
+        "snapped_distance": 8.26
+      },
+      {
+        "location": [
+          71.416699,
+          51.089507
+        ],
+        "snapped_distance": 45.34
+      },
+      {
+        "location": [
+          71.425232,
+          51.129111
+        ],
+        "snapped_distance": 3.63
+      }
+    ],
+    "metadata": {
+      "attribution": "openrouteservice.org | OpenStreetMap contributors",
+      "service": "matrix",
+      "timestamp": 1792426656569,
+      "query": {
+        "locations": [
+          [
+            71.4107868,
+            51.0887669
+          ],
+          [
+            71.4165705,
+            51.1061652
+          ],
+          [
+            71.4161925,
+            51.089252
+          ],
+          [
+            71.4252821,
+            51.1291028
+          ]
+        ],
+        "profile": "foot-walking",
+        "profileName": "foot-walking",
+        "responseType": "json",
+        "sources": [
+          "0",
+          "1",
+          "2",
+          "3"
+        ],
+        "destinations": [
+          "0",
+          "1",
+          "2",
+          "3"
+        ],
+        "metrics": [
+          "duration",
+          "distance"
+        ],
+        "resolve_locations": true,
+        "units": "m"
+      },
+      "engine": {
+        "version": "9.10.0",
+        "build_date": "2026-08-13T11:53:14Z",
+        "graph_date": "2026-09-20T06:31:34Z",
+        "osm_date": "2026-09-13T23:59:59Z"
+      }
+    }
+  },
+  "response_sha256": "e19f3f965e1c574d672ab0fc0cc7940ddeb5a2b15d5012e846c00b597653e9c7"
+}

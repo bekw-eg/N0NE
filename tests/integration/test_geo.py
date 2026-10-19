@@ -32,6 +32,19 @@ def capture_time() -> datetime:
     )
 
 
+def historical_catalog() -> cli.AnchorCatalog:
+    # Exact historical requests must use their original points even as the current
+    # catalog grows or replaces a center with an evidenced entrance.
+    original = json.loads((ROOT / "data/geo/demo/anchors.json").read_bytes())
+    return cli.AnchorCatalog.model_validate(
+        {
+            "schema_version": "0.1.0",
+            "description": "Original PR #2 anchors, not current entrance evidence",
+            "anchors": [original["origin"], original["destination"]],
+        }
+    )
+
+
 def no_network(*args: Any, **kwargs: Any) -> NoReturn:
     raise AssertionError("Offline integration must not open an HTTP client")
 
@@ -39,7 +52,7 @@ def no_network(*args: Any, **kwargs: Any) -> NoReturn:
 def test_backend_facade_replays_all_real_services(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(httpx, "Client", no_network)
     original = {path: path.read_bytes() for path in RECORDINGS.glob("*.json")}
-    catalog = cli.AnchorCatalog.model_validate_json(CATALOG.read_bytes())
+    catalog = historical_catalog()
     points = [anchor.location for anchor in catalog.anchors]
     adapter = GeoAdapter(mode="recorded", recordings_dir=RECORDINGS, now=capture_time)
     route = adapter.directions(DirectionsRequest(locations=points))
@@ -93,7 +106,7 @@ def test_historical_compatibility_rejects_modified_capture(
     target = tmp_path / path.name
     target.write_text(json.dumps(capture), encoding="utf-8")
     original = target.read_bytes()
-    catalog = cli.AnchorCatalog.model_validate_json(CATALOG.read_bytes())
+    catalog = historical_catalog()
     request = DirectionsRequest(locations=[anchor.location for anchor in catalog.anchors])
     with pytest.raises(GeoError) as error:
         GeoAdapter(mode="recorded", recordings_dir=tmp_path, now=capture_time).directions(request)
@@ -106,7 +119,7 @@ def test_historical_compatibility_keeps_age_checks(
     monkeypatch: pytest.MonkeyPatch, offset: timedelta
 ) -> None:
     monkeypatch.setattr(httpx, "Client", no_network)
-    catalog = cli.AnchorCatalog.model_validate_json(CATALOG.read_bytes())
+    catalog = historical_catalog()
     request = DirectionsRequest(locations=[anchor.location for anchor in catalog.anchors])
     with pytest.raises(GeoError) as error:
         GeoAdapter(
@@ -119,7 +132,7 @@ def test_historical_compatibility_does_not_override_custom_base(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(httpx, "Client", no_network)
-    catalog = cli.AnchorCatalog.model_validate_json(CATALOG.read_bytes())
+    catalog = historical_catalog()
     request = DirectionsRequest(locations=[anchor.location for anchor in catalog.anchors])
     with pytest.raises(GeoError) as error:
         GeoAdapter(
@@ -132,7 +145,7 @@ def test_historical_compatibility_does_not_override_custom_base(
 
 
 def test_live_failure_does_not_use_historical_recordings() -> None:
-    catalog = cli.AnchorCatalog.model_validate_json(CATALOG.read_bytes())
+    catalog = historical_catalog()
     request = DirectionsRequest(locations=[anchor.location for anchor in catalog.anchors])
     original = {path: path.read_bytes() for path in RECORDINGS.glob("*.json")}
     calls: list[httpx.Request] = []
@@ -170,13 +183,15 @@ def test_offline_cli_exports_source_geometry_and_mode(
         return real_adapter(**kwargs, now=capture_time)
 
     monkeypatch.setattr(cli, "GeoAdapter", frozen_adapter)
+    legacy_catalog_path = tmp_path / "legacy-anchors.json"
+    legacy_catalog_path.write_text(historical_catalog().model_dump_json(), encoding="utf-8")
     assert (
         cli.main(
             [
                 "--mode",
                 "recorded",
                 "--anchors",
-                str(CATALOG),
+                str(legacy_catalog_path),
                 "--recordings-dir",
                 str(RECORDINGS),
                 "--output-dir",

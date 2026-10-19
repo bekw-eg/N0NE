@@ -1,26 +1,152 @@
 {
-  "schema_version": "0.1.0",
-  "description": "Public landmarks from the recorded OSM snapshot. Representative points are not verified entrances.",
+  "schema_version": "0.2.0",
+  "description": "OSM-source-verified public anchors. Mapped entrances are distinguished from representative centers/nodes; opening and wheelchair access remain unknown. © OpenStreetMap contributors, https://www.openstreetmap.org/copyright .",
   "anchors": [
     {
       "id": "mega_silk_way",
-      "name": "Mega Silk Way",
-      "location": {"longitude": 71.4073303, "latitude": 51.0890897},
-      "coordinate_kind": "bounding_box_center",
-      "source_url": "https://www.openstreetmap.org/way/499328514",
-      "osm_version": 16,
-      "osm_updated_at": "2026-08-17T02:13:14Z",
-      "retrieved_at": "2026-10-19T14:07:30.263649Z"
+      "name": "Mega Silk Way — entrance E",
+      "location": {
+        "longitude": 71.4107868,
+        "latitude": 51.0887669
+      },
+      "coordinate_kind": "mapped_entrance",
+      "source_url": "https://www.openstreetmap.org/node/13404024647",
+      "osm_version": 1,
+      "osm_updated_at": "2025-12-25T09:31:43Z",
+      "retrieved_at": "2026-10-19T16:15:38.701477+00:00",
+      "osm_tags": {
+        "entrance": "main",
+        "ref": "E"
+      },
+      "verification_status": "source_verified",
+      "entrance_status": "osm_mapped",
+      "accessibility_status": "unknown",
+      "opening_status": "unknown",
+      "limitations": [
+        "OSM entrance=main, ref=E; node belongs to mall outline way 499328514. No field survey, current access or wheelchair evidence. Original building geometry and tags retained in sources/mega.json."
+      ],
+      "landmark_source_url": "https://www.openstreetmap.org/way/499328514",
+      "alternative_entrances": [
+        {
+          "id": "mega_silk_way_entrance_f",
+          "name": "Mega Silk Way — entrance F",
+          "location": {
+            "longitude": 71.4084803,
+            "latitude": 51.0896974
+          },
+          "coordinate_kind": "mapped_entrance",
+          "source_url": "https://www.openstreetmap.org/node/5761275928",
+          "osm_version": 5,
+          "osm_updated_at": "2025-12-25T09:31:43Z",
+          "retrieved_at": "2026-10-19T16:15:38.701477+00:00",
+          "osm_tags": {
+            "entrance": "main",
+            "ref": "F"
+          },
+          "verification_status": "source_verified",
+          "entrance_status": "osm_mapped",
+          "accessibility_status": "unknown",
+          "opening_status": "unknown",
+          "limitations": [
+            "OSM entrance=main, ref=F on mall outline. Access rights and current opening unknown."
+          ],
+          "landmark_source_url": "https://www.openstreetmap.org/way/499328514"
+        }
+      ]
     },
     {
       "id": "botanical_garden",
-      "name": "Ботаникалық бақ",
-      "location": {"longitude": 71.4165705, "latitude": 51.1061652},
+      "name": "Ботаникалық бақ / Botanical Garden",
+      "location": {
+        "longitude": 71.4165705,
+        "latitude": 51.1061652
+      },
       "coordinate_kind": "bounding_box_center",
       "source_url": "https://www.openstreetmap.org/way/1196402246",
       "osm_version": 15,
       "osm_updated_at": "2026-09-26T20:20:55Z",
-      "retrieved_at": "2026-10-19T14:07:30.263649Z"
+      "retrieved_at": "2026-10-19T16:15:39.101724+00:00",
+      "osm_tags": {
+        "leisure": "park",
+        "name": "Ботаникалық бақ",
+        "name:de": "Botanischer Garten",
+        "name:en": "Botanical Garden",
+        "name:kk": "Ботаникалық бақ",
+        "name:ru": "Ботанический сад",
+        "phone": "+7 707 7051661",
+        "start_date": "2018-07-02",
+        "website": "https://www.astanabotsad.kz/",
+        "wikidata": "Q104866948",
+        "wikimedia_commons": "Category:Astana botanical garden",
+        "wikipedia": "kk:Ботаникалық бақ (Астана)"
+      },
+      "verification_status": "source_verified",
+      "entrance_status": "unknown",
+      "accessibility_status": "unknown",
+      "opening_status": "unknown",
+      "limitations": [
+        "Center of the OSM way bounding box, not an entrance or polygon centroid. No entrance tag on the retrieved boundary nodes. Nearby or unmapped entrances may exist; access remains unknown."
+      ]
+    },
+    {
+      "id": "expo_nur_alem",
+      "name": "EXPO / Nur Alem (OSM: Alem.ai)",
+      "location": {
+        "longitude": 71.4161925,
+        "latitude": 51.089252
+      },
+      "coordinate_kind": "bounding_box_center",
+      "source_url": "https://www.openstreetmap.org/way/454857501",
+      "osm_version": 15,
+      "osm_updated_at": "2026-03-08T06:02:41Z",
+      "retrieved_at": "2026-10-19T16:15:39.442733+00:00",
+      "osm_tags": {
+        "addr:city": "Астана",
+        "addr:housenumber": "В1",
+        "addr:street": "Мәңгілік Ел даңғылы",
+        "building": "office",
+        "museum": "future",
+        "name": "Alem.ai",
+        "name:kk": "Alem.ai Халықаралық Жасанды Интеллект Орталығы",
+        "name:ru": "Alem.ai Международный центр искусственного интеллекта",
+        "office": "yes",
+        "website": "https://alem.ai/kk/"
+      },
+      "verification_status": "source_verified",
+      "entrance_status": "unknown",
+      "accessibility_status": "unknown",
+      "opening_status": "unknown",
+      "limitations": [
+        "Center of OSM building bounding box, not an entrance. Current OSM name is Alem.ai. Nur Alem is the historical EXPO landmark name; museum operation and access are not inferred.",
+        "Name association: https://www.gov.kz/memleket/entities/maidd/press/news/details/901676 . No entrance tag on retrieved outline nodes; no field survey."
+      ]
+    },
+    {
+      "id": "nurzhol_boulevard",
+      "name": "Нуржол / Water-Green Boulevard — Keruen guidepost",
+      "location": {
+        "longitude": 71.4252821,
+        "latitude": 51.1291028
+      },
+      "coordinate_kind": "osm_node",
+      "source_url": "https://www.openstreetmap.org/node/13503066248",
+      "osm_version": 2,
+      "osm_updated_at": "2026-03-11T06:03:01Z",
+      "retrieved_at": "2026-10-19T16:15:39.804920+00:00",
+      "osm_tags": {
+        "description": "Указатель Нуржол - Керуен",
+        "hiking": "yes",
+        "information": "guidepost",
+        "operator": "Astana Tourism",
+        "tourism": "information"
+      },
+      "verification_status": "source_verified",
+      "entrance_status": "unknown",
+      "accessibility_status": "unknown",
+      "opening_status": "unknown",
+      "limitations": [
+        "Representative Astana Tourism guidepost described as Nurzhol–Keruen in OSM; not the center of the entire boulevard and not an entrance. No current access or wheelchair confirmation."
+      ]
     }
   ]
 }

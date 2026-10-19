@@ -1,0 +1,1027 @@
+{
+  "mode": "live",
+  "attempted_at": "2026-10-19T16:17:33.537470+00:00",
+  "anchor_ids": [
+    "mega_silk_way",
+    "botanical_garden",
+    "expo_nur_alem",
+    "nurzhol_boulevard"
+  ],
+  "all_checks_succeeded": true,
+  "limitations": [
+    "Graph reachability and snap offsets do not verify entrance access.",
+    "Opening status and wheelchair accessibility remain unknown.",
+    "Only files referenced by successful checks belong to this run."
+  ],
+  "checks": [
+    {
+      "operation": "directions",
+      "point_ids": [
+        "mega_silk_way",
+        "botanical_garden"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "00-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:27.298426Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426650977,
+          "query": {
+            "coordinates": [
+              [
+                71.4107868,
+                51.0887669
+              ],
+              [
+                71.4165705,
+                51.1061652
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 2173.5,
+      "duration_seconds": 1564.9,
+      "endpoint_offsets_m": [
+        31.55,
+        8.3
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "mega_silk_way",
+        "expo_nur_alem"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "01-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:27.609920Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426651289,
+          "query": {
+            "coordinates": [
+              [
+                71.4107868,
+                51.0887669
+              ],
+              [
+                71.4161925,
+                51.089252
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 435.0,
+      "duration_seconds": 313.2,
+      "endpoint_offsets_m": [
+        31.55,
+        45.34
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "mega_silk_way",
+        "nurzhol_boulevard"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "02-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:27.934892Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426651610,
+          "query": {
+            "coordinates": [
+              [
+                71.4107868,
+                51.0887669
+              ],
+              [
+                71.4252821,
+                51.1291028
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 5030.4,
+      "duration_seconds": 3621.8,
+      "endpoint_offsets_m": [
+        31.55,
+        3.61
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "botanical_garden",
+        "mega_silk_way"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "03-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:28.269601Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426651944,
+          "query": {
+            "coordinates": [
+              [
+                71.4165705,
+                51.1061652
+              ],
+              [
+                71.4107868,
+                51.0887669
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 2173.5,
+      "duration_seconds": 1564.9,
+      "endpoint_offsets_m": [
+        8.3,
+        31.55
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "botanical_garden",
+        "expo_nur_alem"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "04-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:28.646628Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426652325,
+          "query": {
+            "coordinates": [
+              [
+                71.4165705,
+                51.1061652
+              ],
+              [
+                71.4161925,
+                51.089252
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 2211.8,
+      "duration_seconds": 1592.5,
+      "endpoint_offsets_m": [
+        8.3,
+        45.34
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "botanical_garden",
+        "nurzhol_boulevard"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "05-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:28.967302Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426652643,
+          "query": {
+            "coordinates": [
+              [
+                71.4165705,
+                51.1061652
+              ],
+              [
+                71.4252821,
+                51.1291028
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 3061.9,
+      "duration_seconds": 2204.5,
+      "endpoint_offsets_m": [
+        8.3,
+        3.61
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "expo_nur_alem",
+        "mega_silk_way"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "06-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:29.306803Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426652984,
+          "query": {
+            "coordinates": [
+              [
+                71.4161925,
+                51.089252
+              ],
+              [
+                71.4107868,
+                51.0887669
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 435.0,
+      "duration_seconds": 313.2,
+      "endpoint_offsets_m": [
+        45.34,
+        31.55
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "expo_nur_alem",
+        "botanical_garden"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "07-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:29.620881Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426653299,
+          "query": {
+            "coordinates": [
+              [
+                71.4161925,
+                51.089252
+              ],
+              [
+                71.4165705,
+                51.1061652
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 2211.8,
+      "duration_seconds": 1592.5,
+      "endpoint_offsets_m": [
+        45.34,
+        8.3
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "expo_nur_alem",
+        "nurzhol_boulevard"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "08-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:29.982157Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426653659,
+          "query": {
+            "coordinates": [
+              [
+                71.4161925,
+                51.089252
+              ],
+              [
+                71.4252821,
+                51.1291028
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 4986.6,
+      "duration_seconds": 3590.3,
+      "endpoint_offsets_m": [
+        45.34,
+        3.61
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "nurzhol_boulevard",
+        "mega_silk_way"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "09-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:30.301963Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426653978,
+          "query": {
+            "coordinates": [
+              [
+                71.4252821,
+                51.1291028
+              ],
+              [
+                71.4107868,
+                51.0887669
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 5030.4,
+      "duration_seconds": 3621.8,
+      "endpoint_offsets_m": [
+        3.61,
+        31.55
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "nurzhol_boulevard",
+        "botanical_garden"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "10-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:30.637771Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426654316,
+          "query": {
+            "coordinates": [
+              [
+                71.4252821,
+                51.1291028
+              ],
+              [
+                71.4165705,
+                51.1061652
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 3061.9,
+      "duration_seconds": 2204.5,
+      "endpoint_offsets_m": [
+        3.61,
+        8.3
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "nurzhol_boulevard",
+        "expo_nur_alem"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "11-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:30.960726Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426654638,
+          "query": {
+            "coordinates": [
+              [
+                71.4252821,
+                51.1291028
+              ],
+              [
+                71.4161925,
+                51.089252
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 4986.6,
+      "duration_seconds": 3590.3,
+      "endpoint_offsets_m": [
+        3.61,
+        45.34
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "isochrones",
+      "point_ids": [
+        "mega_silk_way"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "12-isochrones.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:31.365567Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/isochrones/foot-walking",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "isochrones",
+          "timestamp": 1792426655043,
+          "query": {
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "locations": [
+              [
+                71.4107868,
+                51.0887669
+              ]
+            ],
+            "range": [
+              600.0,
+              900.0
+            ],
+            "range_type": "time"
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      }
+    },
+    {
+      "operation": "isochrones",
+      "point_ids": [
+        "botanical_garden"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "13-isochrones.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:31.730525Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/isochrones/foot-walking",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "isochrones",
+          "timestamp": 1792426655410,
+          "query": {
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "locations": [
+              [
+                71.4165705,
+                51.1061652
+              ]
+            ],
+            "range": [
+              600.0,
+              900.0
+            ],
+            "range_type": "time"
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      }
+    },
+    {
+      "operation": "isochrones",
+      "point_ids": [
+        "expo_nur_alem"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "14-isochrones.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:32.089405Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/isochrones/foot-walking",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "isochrones",
+          "timestamp": 1792426655766,
+          "query": {
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "locations": [
+              [
+                71.4161925,
+                51.089252
+              ]
+            ],
+            "range": [
+              600.0,
+              900.0
+            ],
+            "range_type": "time"
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      }
+    },
+    {
+      "operation": "isochrones",
+      "point_ids": [
+        "nurzhol_boulevard"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "15-isochrones.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:32.458882Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/isochrones/foot-walking",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "isochrones",
+          "timestamp": 1792426656137,
+          "query": {
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "locations": [
+              [
+                71.4252821,
+                51.1291028
+              ]
+            ],
+            "range": [
+              600.0,
+              900.0
+            ],
+            "range_type": "time"
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      }
+    },
+    {
+      "operation": "matrix",
+      "point_ids": [
+        "mega_silk_way",
+        "botanical_garden",
+        "expo_nur_alem",
+        "nurzhol_boulevard"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "16-matrix.json",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:32.890480Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/matrix/foot-walking",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "matrix",
+          "timestamp": 1792426656569,
+          "query": {
+            "locations": [
+              [
+                71.4107868,
+                51.0887669
+              ],
+              [
+                71.4165705,
+                51.1061652
+              ],
+              [
+                71.4161925,
+                51.089252
+              ],
+              [
+                71.4252821,
+                51.1291028
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "responseType": "json",
+            "sources": [
+              "0",
+              "1",
+              "2",
+              "3"
+            ],
+            "destinations": [
+              "0",
+              "1",
+              "2",
+              "3"
+            ],
+            "metrics": [
+              "duration",
+              "distance"
+            ],
+            "resolve_locations": true,
+            "units": "m"
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      }
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "mega_silk_way",
+        "mega_silk_way_entrance_f"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "17-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:33.217471Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426656893,
+          "query": {
+            "coordinates": [
+              [
+                71.4107868,
+                51.0887669
+              ],
+              [
+                71.4084803,
+                51.0896974
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 332.5,
+      "duration_seconds": 239.4,
+      "endpoint_offsets_m": [
+        31.55,
+        10.51
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    },
+    {
+      "operation": "directions",
+      "point_ids": [
+        "mega_silk_way_entrance_f",
+        "mega_silk_way"
+      ],
+      "mode": "live",
+      "status": "ok",
+      "file": "18-directions.geojson",
+      "provenance": {
+        "provider": "openrouteservice",
+        "profile": "foot-walking",
+        "mode": "live",
+        "retrieved_at": "2026-10-19T16:17:33.529053Z",
+        "endpoint": "https://api.heigit.org/openrouteservice/v2/directions/foot-walking/geojson",
+        "metadata": {
+          "attribution": "openrouteservice.org | OpenStreetMap contributors",
+          "service": "routing",
+          "timestamp": 1792426657206,
+          "query": {
+            "coordinates": [
+              [
+                71.4084803,
+                51.0896974
+              ],
+              [
+                71.4107868,
+                51.0887669
+              ]
+            ],
+            "profile": "foot-walking",
+            "profileName": "foot-walking",
+            "format": "geojson",
+            "units": "m",
+            "radiuses": [
+              100.0,
+              100.0
+            ]
+          },
+          "engine": {
+            "version": "9.10.0",
+            "build_date": "2026-08-13T11:53:14Z",
+            "graph_date": "2026-09-20T06:31:34Z",
+            "osm_date": "2026-09-13T23:59:59Z"
+          }
+        }
+      },
+      "distance_meters": 332.5,
+      "duration_seconds": 239.4,
+      "endpoint_offsets_m": [
+        10.51,
+        31.55
+      ],
+      "offset_method": "great_circle_to_returned_endpoint_not_walkable_connection"
+    }
+  ]
+}

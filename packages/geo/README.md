@@ -82,14 +82,25 @@ Every result includes provider, profile, original retrieval time, endpoint, full
 provider metadata (including attribution/graph dates), and `mode=live|recorded`.
 Render provider attribution alongside the map. GeoJSON uses **longitude, latitude**.
 
-The two initial public anchors come from real OSM objects recorded by the POI
-collector: Mega Silk Way and the Botanical Garden. Both points are bounding-box
-centers, **not verified entrances**. Directions use an explicit 100-meter default
-snapping radius (configurable up to 1,000 meters). Returned paths connect snapped
-graph positions; the summary does not establish a walkable connection from a
-building interior, an accessible entrance, opening status, or covered passage.
-Matrix snapping distances are offsets, not additional walking legs. The other
-two project areas can be added after their anchor/entrance evidence is collected.
+The public catalog now covers Mega Silk Way, the Botanical Garden, EXPO / Nur Alem
+(currently named Alem.ai in OSM), and Nurzhol Boulevard. Mega uses an OSM-mapped
+main entrance E, with F as an alternative; both nodes belong to the mall outline.
+The garden and EXPO remain bounding-box centers with `entrance_status=unknown`.
+Nurzhol uses an Astana Tourism guidepost, an ordinary OSM node, not an entrance.
+Raw OSM evidence is in `data/geo/anchors/sources/`.
+
+`Anchor` and `AnchorCatalog` are public imports and remain available from `cli`.
+The catalog schema is `0.2.0`; actual legacy `0.1.0` catalogs load with unknown
+verification/entrance defaults and retain their original coordinates and metadata.
+Positive mapped-entrance claims require an OSM node URL, explicit entrance tags,
+source verification and a landmark association. `source_verified` means checked
+against the stored OSM source, not a field survey. All current opening and
+wheelchair accessibility statuses are `unknown`.
+
+Directions use an explicit 100-meter default snapping radius (configurable up to
+1,000 meters). Returned paths connect snapped graph positions; the summary does
+not establish a walkable connection from an interior point or a currently usable
+entrance. Matrix snapping distances are offsets, not additional walking legs.
 
 ## Live capture and explicit offline replay
 
@@ -99,11 +110,29 @@ The smoke CLI accepts public anchor IDs, not a user GPS pair. With a configured 
 uv run --project packages/geo --env-file .env python scripts/geo_smoke.py --recordings-dir data/tmp/geo-live/recordings --output-dir data/tmp/geo-live/demo
 ```
 
-For an offline demo using the checked-in real ORS responses:
+For the complete four-zone offline demo using checked-in real HeiGIT responses:
 
 ```powershell
-uv run --project packages/geo python scripts/geo_smoke.py --mode recorded --recordings-dir data/geo/recordings --output-dir data/tmp/geo-replayed
+uv run --project packages/geo python scripts/geo_smoke.py --all-anchors --mode recorded --output-dir data/tmp/anchors-replayed
 ```
+
+`--all-anchors` checks all 12 directed zone pairs, 600/900-second isochrones from
+each anchor, a 4×4 matrix in catalog order, and E↔F entrance routes. It defaults to
+`data/geo/anchors/recordings` and `data/geo/anchors/demo`, separately from historical
+captures. A live run uses `--env-file .env`, `--all-anchors`, and `--mode live`.
+For new captures, explicitly choose fresh directories under `data/tmp/`.
+Single-pair smoke runs default to `data/tmp/geo-smoke/{recordings,demo}` so they
+cannot overwrite the historical demo when the current primary Mega point changes.
+
+Read `manifest.json` first: only successful checks have a `file`; failed checks
+contain a sanitized error and `result=null`. Independent checks continue and the
+CLI exits 2 if any operation fails. Matrix unreachable cells stay paired nulls.
+Directions include great-circle offsets to the returned geometry endpoints;
+these are calculated spatial offsets, not provider-reported walking legs. Matrix
+`snapped_distance` remains the provider value. Successful output retains the
+original retrieval time, endpoint, attribution, graph dates and `live|recorded`.
+See the [anchor report](../../docs/developer-1-anchors-report.md) and
+[snapshot instructions](../../data/geo/anchors/README.md).
 
 The recording filename identifies the operation, walking profile, and exact JSON
 request. The capture also stores endpoint, retrieval time, response SHA-256, and
@@ -124,6 +153,12 @@ hash is recomputed. Arbitrary legacy recordings and custom base URLs still requi
 an exact endpoint match. This exception never makes an HTTP request and never
 falls back to the old service. Capture new live responses in a separate directory,
 as above, to preserve these historical fixtures.
+
+Historical requests still need the original center coordinates; changing to the
+new Mega entrance cannot match an old capture. The [historical snapshot
+instructions](../../data/geo/README.md) show how to export its original catalog.
+Integration tests use those original anchors and still exercise all legacy
+endpoint, integrity, age and error checks.
 
 The default maximum recording age is 24 hours; future timestamps beyond five
 minutes are rejected. For a deliberate historical demo, pass

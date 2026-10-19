@@ -1,0 +1,33 @@
+{
+  "source_url": "https://api.openstreetmap.org/api/0.6/node/13503066248.json",
+  "retrieved_at": "2026-10-19T16:15:39.804920+00:00",
+  "attribution": "OpenStreetMap contributors",
+  "license_url": "https://www.openstreetmap.org/copyright",
+  "response": {
+    "version": "0.6",
+    "generator": "openstreetmap-cgimap 2.1.0 (1301 spike-08.openstreetmap.org)",
+    "copyright": "OpenStreetMap and contributors",
+    "attribution": "http://www.openstreetmap.org/copyright",
+    "license": "http://opendatacommons.org/licenses/odbl/1-0/",
+    "elements": [
+      {
+        "type": "node",
+        "id": 13503066248,
+        "lat": 51.1291028,
+        "lon": 71.4252821,
+        "timestamp": "2026-03-11T06:03:01Z",
+        "version": 2,
+        "changeset": 179674402,
+        "user": "Ruslan Fatih",
+        "uid": 12875574,
+        "tags": {
+          "description": "Указатель Нуржол - Керуен",
+          "hiking": "yes",
+          "information": "guidepost",
+          "operator": "Astana Tourism",
+          "tourism": "information"
+        }
+      }
+    ]
+  }
+}

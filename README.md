@@ -9,4 +9,8 @@ It collects source-backed POIs and exports validated JSON and GeoJSON. The
 isochrones, time/distance matrices, and recorded-response replay. Weather,
 backend recommendations, and the web application are subsequent tasks.
 
+The [four-zone anchor report](docs/developer-1-anchors-report.md) documents current
+OSM evidence, mapped versus unknown entrances, real HeiGIT walking checks, and the
+[offline geographic demo](data/geo/anchors/README.md).
+
 Contributions target `main` through feature branches and pull requests.

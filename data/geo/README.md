@@ -1,5 +1,9 @@
 # Real ORS walking snapshot
 
+This directory's `recordings/` and `demo/` are the immutable PR #2 snapshot.
+The current four-zone HeiGIT scenario is stored separately in
+[`anchors/`](anchors/README.md).
+
 These are actual HTTPS responses from OpenRouteService for **public landmarks**.
 They are not synthetic route fixtures or user GPS histories.
 
@@ -36,7 +40,8 @@ should use a separate directory, such as `data/tmp/geo-live/recordings`.
 For an explicit offline replay and response validation, from the repository root:
 
 ```powershell
-uv run --project packages/geo python scripts/geo_smoke.py --mode recorded --recordings-dir data/geo/recordings --output-dir data/tmp/geo-replayed
+uv run --project packages/geo python -c 'import json; from pathlib import Path; d=json.loads(Path("data/geo/demo/anchors.json").read_bytes()); p=Path("data/tmp/legacy-anchors.json"); p.parent.mkdir(parents=True, exist_ok=True); p.write_text(json.dumps({"schema_version":"0.1.0","description":"Historical PR 2 centers","anchors":[d["origin"],d["destination"]]}), encoding="utf-8")'
+uv run --project packages/geo python scripts/geo_smoke.py --mode recorded --anchors data/tmp/legacy-anchors.json --recordings-dir data/geo/recordings --output-dir data/tmp/geo-replayed
 ```
 
 Replayed outputs are labeled `recorded`. The default maximum snapshot age is
