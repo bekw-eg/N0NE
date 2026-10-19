@@ -99,6 +99,38 @@ test('live pizza intent: no substitution at EXPO; real pizzeria from Botanical G
   await testInfo.attach('pizza-live-plan.json', { body: JSON.stringify(plan, null, 2), contentType: 'application/json' });
 });
 
+test('live coffee and park request preserves both required stages and their order', async ({ page }, testInfo) => {
+  test.skip(process.env.RUN_LIVE_ORS !== '1', 'Opt in with RUN_LIVE_ORS=1 and a configured backend');
+  await page.goto('/');
+  await page.getByRole('textbox').fill('Хочу спокойную прогулку возле парка с кофе');
+  let responsePromise = page.waitForResponse(response => response.url().endsWith('/api/v1/routes/plan'));
+  await submit(page);
+  const plan = await (await responsePromise).json();
+  expect(plan.status).toBe('success');
+  expect(plan.routing_provenance.directions.mode).toBe('live');
+  expect(plan.stops).toHaveLength(2);
+  expect(plan.stops[0].category).toBe('cafe');
+  expect(['park', 'garden']).toContain(plan.stops[1].category);
+  expect(plan.estimated_total_minutes).toBeLessThanOrEqual(60);
+  expect(plan.warnings).not.toContain('nearby_fallback_not_query_match');
+  await expect(page.locator('main')).toContainText('кофейня → прогулка в парке или саду');
+  for (const stop of plan.stops) {
+    expect(stop.selection_source).toBe('retrieval');
+    await expect(page.getByRole('heading', { name: stop.name, exact: true })).toHaveCount(1);
+  }
+  await expect(page.locator('.maplibregl-marker')).toHaveCount(3);
+  await testInfo.attach('coffee-park-live-plan.json', { body: JSON.stringify(plan, null, 2), contentType: 'application/json' });
+
+  await page.getByRole('textbox').fill('Сначала парк, потом кофе');
+  responsePromise = page.waitForResponse(response => response.url().endsWith('/api/v1/routes/plan'));
+  await submit(page);
+  const reversed = await (await responsePromise).json();
+  expect(reversed.status).toBe('success');
+  expect(['park', 'garden']).toContain(reversed.stops[0].category);
+  expect(reversed.stops[1].category).toBe('cafe');
+  await expect(page.locator('main')).toContainText('прогулка в парке или саду → кофейня');
+});
+
 for (const scenario of [
   { port: 8001, reason: 'unreachable' },
   { port: 8002, reason: 'ors_unavailable' },

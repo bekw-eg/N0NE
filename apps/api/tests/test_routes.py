@@ -25,6 +25,7 @@ from app.integrations.ollama import ProviderError
 from app.main import create_app
 from app.repositories.poi_repository import POIRepository
 from app.schemas.routes import RoutePlanRequest, RoutePlanSuccess, RoutePlanUnavailable
+from app.services.retrieval_service import RetrievalService
 from app.services.route_planner import Candidate, RoutePlanner, haversine
 
 URL = "/api/v1/routes/plan"
@@ -494,6 +495,114 @@ def test_no_nearby_pizzeria_explains_missing_match_without_ors(
     assert phrase in body["recommendation"]
     assert "2500" in body["recommendation"]
     assert not fake.matrices and not fake.directions_requests
+
+
+@pytest.mark.parametrize("round_trip", [True, False])
+def test_coffee_then_park_requires_both_stops_in_directions_order(
+    route_client: tuple[TestClient, FakeGeoAdapter],
+    round_trip: bool,
+) -> None:
+    client, fake = route_client
+    body = client.post(
+        URL,
+        json=dict(
+            BODY,
+            start_anchor_id="mega_silk_way",
+            round_trip=round_trip,
+            query="Хочу спокойную прогулку возле парка с кофе",
+        ),
+    ).json()
+    assert body["status"] == "success"
+    assert len(body["stops"]) == 2
+    assert body["stops"][0]["category"] == "cafe"
+    assert body["stops"][1]["category"] in {"park", "garden"}
+    assert all(stop["selection_source"] == "retrieval" for stop in body["stops"])
+    assert "nearby_fallback_not_query_match" not in body["warnings"]
+    points = fake.directions_requests[-1].locations
+    assert len(points) == 3 + int(round_trip)
+    for stop, point in zip(body["stops"], points[1:3], strict=True):
+        assert (stop["longitude"], stop["latitude"]) == (point.longitude, point.latitude)
+
+
+def test_explicit_park_before_coffee_is_respected(
+    route_client: tuple[TestClient, FakeGeoAdapter],
+) -> None:
+    client, _ = route_client
+    body = client.post(URL, json=dict(BODY, query="Сначала парк, потом кофе")).json()
+    assert body["status"] == "success"
+    assert body["stops"][0]["category"] in {"park", "garden"}
+    assert body["stops"][1]["category"] == "cafe"
+
+
+@pytest.mark.parametrize("missing", [{"cafe"}, {"park", "garden"}])
+def test_missing_stage_never_substitutes_playground_or_community_centre(
+    route_client: tuple[TestClient, FakeGeoAdapter],
+    monkeypatch: pytest.MonkeyPatch,
+    missing: set[str],
+) -> None:
+    client, fake = route_client
+    planner: RoutePlanner = client.app.state.route_planner
+    repo = copy(planner.retrieval.repository)
+    repo.items = tuple(poi for poi in repo.items if poi.category not in missing)
+    repo.by_id = {poi.id: poi for poi in repo.items}
+    repo.records = tuple(poi for poi in repo.records if poi.category not in missing)
+    monkeypatch.setattr(planner, "retrieval", RetrievalService(repo, planner.settings))
+    body = client.post(URL, json=dict(BODY, query="парк с кофе")).json()
+    assert_no_route(body, "no_candidates")
+    assert "все необходимые места" in body["recommendation"]
+    assert not fake.matrices and not fake.directions_requests
+
+
+def test_combined_budget_does_not_return_only_cafe(
+    route_client: tuple[TestClient, FakeGeoAdapter],
+) -> None:
+    client, fake = route_client
+
+    def slow_legs(result: MatrixResult) -> MatrixResult:
+        for i, row in enumerate(result.data.durations):
+            for j in range(len(row)):
+                row[j] = 0.0 if i == j else 1200.0
+        return result
+
+    fake.change_matrix = slow_legs
+    body = client.post(URL, json=dict(BODY, query="парк с кофе")).json()
+    # A cafe alone would fit (40 min walk + 15 visit), but both stages cannot.
+    assert_no_route(body, "budget_exceeded")
+    assert not fake.directions_requests
+
+
+def test_disconnected_required_stages_are_unreachable(
+    route_client: tuple[TestClient, FakeGeoAdapter],
+) -> None:
+    client, fake = route_client
+
+    def disconnected(result: MatrixResult) -> MatrixResult:
+        planner: RoutePlanner = client.app.state.route_planner
+        candidates, _, _ = planner._candidates(
+            RoutePlanRequest.model_validate(
+                dict(BODY, query="парк с кофе"),
+            )
+        )
+        for i, first in enumerate(candidates, start=1):
+            for j, second in enumerate(candidates, start=1):
+                if first.stage != second.stage:
+                    result.data.durations[i][j] = None
+        return result
+
+    fake.change_matrix = disconnected
+    body = client.post(URL, json=dict(BODY, query="парк с кофе")).json()
+    assert_no_route(body, "unreachable")
+    assert not fake.directions_requests
+
+
+def test_directions_over_budget_cannot_drop_required_park(
+    route_client: tuple[TestClient, FakeGeoAdapter],
+) -> None:
+    client, fake = route_client
+    fake.durations = [3300.0, 60.0]
+    body = client.post(URL, json=dict(BODY, query="парк с кофе")).json()
+    assert_no_route(body, "budget_exceeded")
+    assert len(fake.directions_requests) == 1
 
 
 @pytest.mark.parametrize(
