@@ -1,0 +1,41 @@
+# Real ORS walking snapshot
+
+These are actual HTTPS responses from OpenRouteService for **public landmarks**.
+They are not synthetic route fixtures or user GPS histories.
+
+Captured on **19 October 2026, 19:54:40–19:54:41 Asia/Qyzylorda** (14:54 UTC), using
+the `foot-walking` directions, isochrones, and matrix endpoints:
+
+- Origin: Mega Silk Way, OSM way 499328514.
+- Destination: Botanical Garden, OSM way 1196402246.
+- Route: **2,272.7 meters**, **1,636.3 seconds** (about 27.3 minutes), 91 positions.
+- Isochrones: **600 / 900 seconds** from the origin.
+- Matrix: 2 × 2, meters/seconds, including source/destination snapping information.
+- Provider graph date: **2026-09-20**; underlying OSM date: **2026-09-13**.
+
+The public anchor coordinates are OSM bounding-box centers, not verified entrances.
+The matrix reports snap offsets of 83.39 m and 8.26 m. They do not establish
+walkable connections from an interior point to the graph. The route summary is a
+provider estimate for the graph path; it does not prove opening status, current
+closures, accessibility, or a continuously covered route.
+
+`recordings/` contains the exact request, endpoint, retrieval time, sanitized
+provider response, and response hash for each operation. `demo/` contains normalized
+GeoJSON, matrix JSON, and the source-backed public anchors. GeoJSON has a
+`viberoute_provenance` member with `mode=live` and the original source metadata.
+
+For an explicit offline replay and response validation, from the repository root:
+
+```powershell
+uv run --project packages/geo python scripts/geo_smoke.py --mode recorded --recordings-dir data/geo/recordings --output-dir data/tmp/geo-replayed
+```
+
+Replayed outputs are labeled `recorded`. The default maximum snapshot age is
+24 hours; a historical demo needs an explicit `--max-recording-age-seconds` value.
+Runtime timestamps/age remain visible. Integration tests use the capture time as
+their clock so the snapshot can be tested reproducibly without network access.
+
+Provider attribution retained in the response metadata:
+**openrouteservice.org | OpenStreetMap contributors**. Keep the provider attribution
+visible in downstream maps; see the [ORS terms](https://openrouteservice.org/terms-of-service/)
+and [OpenStreetMap copyright](https://www.openstreetmap.org/copyright).
