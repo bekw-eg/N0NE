@@ -349,3 +349,40 @@ and immediate cache hits, without fixed expected weather; exit 0 means all
 requested anchors passed, 1 means failure/unknown. `--output path.json` records the
 actual responses. A full historical sample is in
 [`examples/weather-live.json`](examples/weather-live.json); never display it as current weather.
+
+## H3 approximate location
+
+`POST /api/v1/privacy/resolve-h3` accepts only `{"h3_cell":"882153806dfffff"}`,
+a resolution-8 H3 cell generated **on the client**. `h3-py` 4.x validates the
+cell and derives its center; GPS is never accepted as a conversion input.
+The example cell comes from the public EXPO catalog point and resolves to
+`expo_nur_alem` with `distance_estimate_m=394` and explicit approximate-location/
+non-walking-distance warnings. IDs are strict 15-character hexadecimal strings;
+other resolutions, edges/vertices, extra body fields and all query parameters
+are rejected with 422. The existing 16 KiB request limit applies.
+
+The stateless service loads the four supported anchors from `shared/anchors.json`.
+Coverage uses the existing Astana snapshot bounds, inclusive by cell center:
+south 51.075, west 71.385, north 51.145, east 71.455. This is MVP coverage, not
+the full municipal boundary. It uses Haversine to select an approximate nearest
+anchor; the configurable maximum `PRIVACY_MAX_ANCHOR_DISTANCE_M` defaults to
+3000 m and accepts finite values >0–10000. Exact ties use anchor ID order.
+Distances are compared before rounding to integer straight-line meters.
+
+A supported match returns `status=matched` and `start_anchor_id`; pass only that
+ID to the existing Route Planner. Otherwise HTTP 200 returns
+`status=no_nearby_anchor`, reason `outside_supported_area|no_anchor_within_radius`,
+and no anchor/distance fields. Offer all four zones for manual selection.
+Neither the H3 cell nor center coordinates are returned, persisted, cached,
+forwarded to ORS/weather/RAG, or logged by this service. Match/no-match responses
+use `Cache-Control: no-store`. ORS still receives only existing catalog start
+coordinates; an approximate center does not establish an entrance or access.
+
+H3 reveals an approximate area and does **not** guarantee anonymity. Deploy over
+HTTPS, disable/redact body and exception-local capture in proxies/APM, and redact
+query strings in infrastructure access logs. Never send GPS/H3 to analytics,
+storage or URLs. The client-side geolocation/`h3-js` 4.x example, manual selector,
+warning codes and privacy limits are in the
+[frontend handoff](../../docs/developer-3-api-integration.md#approximate-location-with-h3).
+The [JSON contract](../../contracts/privacy.schema.json) contains the response
+union and `$defs.H3ResolveRequest`; `/openapi.json` exposes both runtime models.
