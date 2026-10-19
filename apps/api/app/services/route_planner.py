@@ -161,7 +161,7 @@ class RoutePlanner:
         catalog = AnchorCatalog.model_validate_json((ROOT / "shared/anchors.json").read_bytes())
         self.anchors = {anchor.id: anchor for anchor in catalog.anchors}
 
-    def _eligible(self, poi: PublicPOI, anchor: Anchor) -> bool:
+    def _eligible(self, poi: PublicPOI, anchor: Anchor, *, allow_anchor: bool = False) -> bool:
         if (
             not isfinite(poi.longitude)
             or not isfinite(poi.latitude)
@@ -172,8 +172,10 @@ class RoutePlanner:
         distance = haversine(
             anchor.location, GeoPoint(longitude=poi.longitude, latitude=poi.latitude)
         )
-        # Do not recommend a visit to the same representative coordinate as the start.
-        return 1 <= distance <= self.settings.route_nearby_radius_m
+        # A source-matched park can be the final required visit after coffee,
+        # even when the user starts at that park. Other same-point visits stay excluded.
+        minimum = 0 if allow_anchor and str(poi.source_url) == str(anchor.source_url) else 1
+        return minimum <= distance <= self.settings.route_nearby_radius_m
 
     def _candidates(
         self, request: RoutePlanRequest
@@ -195,11 +197,12 @@ class RoutePlanner:
                     found.retrieval_mode,
                 )
             grouped: list[list[PublicPOI]] = []
-            for kind in stages:
+            for stage_index, kind in enumerate(stages):
                 eligible = [
                     poi
                     for poi in repository.items
-                    if poi.category in STOP_CATEGORIES[kind] and self._eligible(poi, anchor)
+                    if poi.category in STOP_CATEGORIES[kind]
+                    and self._eligible(poi, anchor, allow_anchor=kind == "park" and stage_index > 0)
                 ]
                 eligible.sort(
                     key=lambda poi: (
@@ -359,7 +362,7 @@ class RoutePlanner:
 
     def _directions(self, anchor: Anchor, stops: list[Candidate], round_trip: bool) -> RouteResult:
         points = [anchor.location, *[stop.point for stop in stops]]
-        if round_trip:
+        if round_trip and points[-1] != anchor.location:
             points.append(anchor.location)
         route = self.adapter.directions(
             DirectionsRequest(locations=points, snap_radius_m=self.settings.route_snap_radius_m)
@@ -404,6 +407,20 @@ class RoutePlanner:
 
         def unavailable(reason: NoRouteReason) -> RoutePlanUnavailable:
             explanation = no_route_explanation(reason, request.language)
+            if reason == "budget_exceeded":
+                explanation += (
+                    {
+                        "ru": " Увеличьте длительность или отключите возврат к старту.",
+                        "kk": " Уақытты көбейтіңіз немесе бастапқы нүктеге қайтуды өшіріңіз.",
+                        "en": " Allow more time or turn off the return to the starting point.",
+                    }[request.language]
+                    if request.round_trip
+                    else {
+                        "ru": " Увеличьте длительность или выберите другой старт.",
+                        "kk": " Уақытты көбейтіңіз немесе басқа бастапқы нүктені таңдаңыз.",
+                        "en": " Allow more time or choose another starting point.",
+                    }[request.language]
+                )
             if reason == "no_candidates" and requests_pizza(request.query):
                 radius = f"{self.settings.route_nearby_radius_m:g}"
                 explanation = {

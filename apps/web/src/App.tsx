@@ -2,6 +2,7 @@ import React, { useRef, useState, useTransition } from 'react';
 import { latLngToCell } from 'h3-js';
 import { planRoute, resolveH3 } from './api/client';
 import { WeatherCard } from './components/WeatherCard';
+import { formatRouteWarnings, noRouteLabels } from './utils/routeMessages';
 import {
   Compass,
   Navigation,
@@ -168,6 +169,7 @@ export const App: React.FC = () => {
   const isSuccess = planResponse?.status === 'success';
   const successPlan = planResponse?.status === 'success' ? planResponse : null;
   const unavailablePlan = planResponse?.status === 'no_route' ? planResponse : null;
+  const routeWarnings = formatRouteWarnings(planResponse?.warnings ?? []);
 
   return (
     <div className="flex h-dvh w-full flex-col overflow-hidden bg-slate-950 text-slate-100">
@@ -480,16 +482,21 @@ export const App: React.FC = () => {
                   <Compass className="h-5 w-5" />
                 </div>
                 <h3 className="text-sm font-semibold text-slate-200">
-                  Маршрут не может быть сформирован
+                  {unavailablePlan.reason === 'budget_exceeded' ? 'Не хватает времени на весь маршрут' : 'Маршрут не может быть сформирован'}
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
                   {unavailablePlan.recommendation ||
                     'В заданное время невозможно дойти до подходящих мест и вернуться к старту. Попробуйте увеличить бюджет времени.'}
                 </p>
                 <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-800/80 px-2.5 py-1 text-[11px] text-slate-400 font-mono">
-                  Причина: {unavailablePlan.reason}
+                  Причина: {noRouteLabels[unavailablePlan.reason]}
                 </div>
-                {unavailablePlan.warnings.map(warning => <p key={warning} className="text-[10px] text-amber-200">{warning}</p>)}
+                {unavailablePlan.reason === 'budget_exceeded' && (
+                  <button type="button" onClick={() => setActiveTab('controls')} className="block mx-auto rounded-lg border border-cyan-700 px-3 py-2 text-xs text-cyan-300 hover:bg-cyan-950">
+                    Изменить параметры
+                  </button>
+                )}
+                {routeWarnings.map(warning => <p key={warning} className="text-[10px] text-amber-200">{warning}</p>)}
               </div>
             )}
 
@@ -533,18 +540,14 @@ export const App: React.FC = () => {
                   )}
 
                   {/* Caveat Warnings */}
-                  {successPlan.warnings.length > 0 && (
+                  {routeWarnings.length > 0 && (
                     <div className="flex flex-wrap gap-1 text-[10px]">
-                      {successPlan.warnings.map((w) => (
+                      {routeWarnings.map((w) => (
                         <span
                           key={w}
                           className="rounded bg-slate-800/80 px-1.5 py-0.5 text-slate-400 border border-slate-700/50"
                         >
-                          {w === 'visit_times_are_planned_estimates'
-                            ? 'Оценки времени плановые'
-                            : w === 'entrance_and_accessibility_not_verified'
-                            ? 'Входы не верифицированы'
-                            : w}
+                          {w}
                         </span>
                       ))}
                     </div>

@@ -45,11 +45,10 @@ test('live EXPO 60 minutes: Vite proxy → FastAPI → ORS → map', async ({ pa
   for (const stop of plan.stops) {
     if (stop.name) await expect(page.locator('main')).toContainText(stop.name);
   }
-  for (const warning of plan.warnings) {
-    if (!['visit_times_are_planned_estimates', 'entrance_and_accessibility_not_verified'].includes(warning)) {
-      await expect(page.locator('main')).toContainText(warning);
-    }
-  }
+  expect(plan.warnings).toContain('visit_times_are_planned_estimates');
+  await expect(page.locator('main')).toContainText('Время посещений — плановая оценка.');
+  await expect(page.locator('main')).toContainText('Входы и доступность не подтверждены.');
+  await expect(page.locator('main')).not.toContainText('semantic_disabled');
   await expect(page.locator('.maplibregl-marker')).toHaveCount(plan.stops.length + 1);
   await expect(page.locator('canvas.maplibregl-canvas')).toBeVisible();
   expect(browserAPIRequests.every(url => new URL(url).port === '5173')).toBe(true);
@@ -131,9 +130,43 @@ test('live coffee and park request preserves both required stages and their orde
   await expect(page.locator('main')).toContainText('прогулка в парке или саду → кофейня');
 });
 
+test('live Botanical Garden: cafe then original park fits 60; real 30-minute failure is readable', async ({ page }, testInfo) => {
+  test.skip(process.env.RUN_LIVE_ORS !== '1', 'Opt in with RUN_LIVE_ORS=1 and a configured backend');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.getByRole('combobox').selectOption('botanical_garden');
+  await page.getByRole('textbox').fill('Хочу спокойную прогулку возле парка с кофе');
+  let responsePromise = page.waitForResponse(response => response.url().endsWith('/api/v1/routes/plan'));
+  await submit(page);
+  const plan = await (await responsePromise).json();
+  expect(plan.status).toBe('success');
+  expect(plan.routing_provenance.directions.mode).toBe('live');
+  expect(plan.stops[0].category).toBe('cafe');
+  expect(plan.stops[1].id).toBe('osm:way:1196402246');
+  expect(plan.estimated_total_minutes).toBeLessThanOrEqual(60);
+  await expect(page.locator('main')).toContainText(plan.stops[0].name);
+  await expect(page.locator('main')).not.toContainText('bounding_box_center_not_verified_entrance');
+  await testInfo.attach('botanical-coffee-park-live.json', { body: JSON.stringify(plan, null, 2), contentType: 'application/json' });
+
+  await page.getByRole('button', { name: 'Параметры', exact: true }).click();
+  await page.getByRole('slider', { name: 'Длительность' }).fill('30');
+  responsePromise = page.waitForResponse(response => response.url().endsWith('/api/v1/routes/plan'));
+  await submit(page);
+  const unavailable = await (await responsePromise).json();
+  expect(unavailable.status).toBe('no_route');
+  expect(unavailable.reason).toBe('budget_exceeded');
+  await expect(page.getByRole('heading', { name: 'Не хватает времени на весь маршрут' })).toBeVisible();
+  await expect(page.locator('main')).toContainText('Увеличьте длительность');
+  await expect(page.locator('main')).toContainText('Входы и доступность не подтверждены.');
+  await expect(page.locator('main')).not.toContainText('budget_exceeded');
+  await expect(page.locator('main')).not.toContainText('semantic_disabled');
+  await page.getByRole('button', { name: 'Изменить параметры' }).click();
+  await expect(page.getByRole('slider', { name: 'Длительность' })).toBeVisible();
+});
+
 for (const scenario of [
-  { port: 8001, reason: 'unreachable' },
-  { port: 8002, reason: 'ors_unavailable' },
+  { port: 8001, reason: 'unreachable', label: 'Нет подтверждённого пешего пути' },
+  { port: 8002, reason: 'ors_unavailable', label: 'Сервис маршрутов недоступен' },
 ]) {
   test(`real FastAPI no_route from simulated upstream: ${scenario.reason}`, async ({ page }) => {
     await page.route(planPath, async route => {
@@ -147,7 +180,7 @@ for (const scenario of [
     // A previous demo must be removed when a real request fails.
     await page.getByRole('button', { name: 'Показать демо' }).click();
     await submit(page);
-    await expect(page.locator('main')).toContainText(`Причина: ${scenario.reason}`);
+    await expect(page.locator('main')).toContainText(`Причина: ${scenario.label}`);
     await expect(page.locator('main')).not.toContainText('Демонстрационные данные');
     await expect(page.getByText('Зона доступности', { exact: true })).toHaveCount(0);
     await expect(page.locator('.maplibregl-marker')).toHaveCount(1);

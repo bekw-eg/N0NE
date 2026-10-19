@@ -605,6 +605,46 @@ def test_directions_over_budget_cannot_drop_required_park(
     assert len(fake.directions_requests) == 1
 
 
+@pytest.mark.parametrize("round_trip", [True, False])
+def test_botanical_start_can_be_the_park_after_coffee_without_duplicate_waypoint(
+    route_client: tuple[TestClient, FakeGeoAdapter],
+    round_trip: bool,
+) -> None:
+    client, fake = route_client
+    body = client.post(
+        URL,
+        json=dict(
+            BODY,
+            start_anchor_id="botanical_garden",
+            round_trip=round_trip,
+            query="Хочу спокойную прогулку возле парка с кофе",
+        ),
+    ).json()
+    assert body["status"] == "success"
+    assert body["stops"][0]["category"] == "cafe"
+    park = body["stops"][1]
+    assert park["id"] == "osm:way:1196402246"
+    assert park["source_url"] == body["start_anchor"]["source_url"]
+    points = fake.directions_requests[-1].locations
+    assert len(points) == 3
+    assert points[0] == points[-1]
+    assert all(first != second for first, second in zip(points, points[1:], strict=False))
+    assert body["visiting_minutes"] == 25
+
+
+def test_unrelated_poi_at_anchor_coordinates_is_still_excluded(
+    route_client: tuple[TestClient, FakeGeoAdapter],
+) -> None:
+    client, _ = route_client
+    planner: RoutePlanner = client.app.state.route_planner
+    anchor = planner.anchors["botanical_garden"]
+    park = planner.retrieval.repository.by_id["osm:way:1196402246"]
+    assert not planner._eligible(park, anchor)
+    assert planner._eligible(park, anchor, allow_anchor=True)
+    unrelated = park.model_copy(update={"source_url": "https://www.openstreetmap.org/node/123"})
+    assert not planner._eligible(unrelated, anchor, allow_anchor=True)
+
+
 @pytest.mark.parametrize(
     "language,phrase",
     [
