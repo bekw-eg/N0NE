@@ -1,0 +1,128 @@
+{
+  "format_version": "1",
+  "operation": "matrix",
+  "profile": "foot-walking",
+  "endpoint": "https://api.openrouteservice.org/v2/matrix/foot-walking",
+  "retrieved_at": "2026-10-19T14:54:41.933028Z",
+  "request": {
+    "locations": [
+      [
+        71.4073303,
+        51.0890897
+      ],
+      [
+        71.4165705,
+        51.1061652
+      ]
+    ],
+    "sources": [
+      "0",
+      "1"
+    ],
+    "destinations": [
+      "0",
+      "1"
+    ],
+    "metrics": [
+      "duration",
+      "distance"
+    ],
+    "units": "m",
+    "resolve_locations": true
+  },
+  "response": {
+    "durations": [
+      [
+        0.0,
+        1636.31
+      ],
+      [
+        1636.31,
+        0.0
+      ]
+    ],
+    "distances": [
+      [
+        0.0,
+        2272.7
+      ],
+      [
+        2272.7,
+        0.0
+      ]
+    ],
+    "destinations": [
+      {
+        "location": [
+          71.40758,
+          51.089823
+        ],
+        "snapped_distance": 83.39
+      },
+      {
+        "location": [
+          71.416608,
+          51.106236
+        ],
+        "snapped_distance": 8.26
+      }
+    ],
+    "sources": [
+      {
+        "location": [
+          71.40758,
+          51.089823
+        ],
+        "snapped_distance": 83.39
+      },
+      {
+        "location": [
+          71.416608,
+          51.106236
+        ],
+        "snapped_distance": 8.26
+      }
+    ],
+    "metadata": {
+      "attribution": "openrouteservice.org | OpenStreetMap contributors",
+      "service": "matrix",
+      "timestamp": 1792421685589,
+      "query": {
+        "locations": [
+          [
+            71.4073303,
+            51.0890897
+          ],
+          [
+            71.4165705,
+            51.1061652
+          ]
+        ],
+        "profile": "foot-walking",
+        "profileName": "foot-walking",
+        "responseType": "json",
+        "sources": [
+          "0",
+          "1"
+        ],
+        "destinations": [
+          "0",
+          "1"
+        ],
+        "metrics": [
+          "duration",
+          "distance"
+        ],
+        "resolve_locations": true,
+        "units": "m"
+      },
+      "engine": {
+        "version": "9.10.0",
+        "build_date": "2026-08-13T11:53:14Z",
+        "graph_date": "2026-09-20T06:31:34Z",
+        "osm_date": "2026-09-13T23:59:59Z"
+      }
+    }
+  },
+  "response_sha256": "f07705b0a857b5e8000296b8c69896ea5b74052babd70e3da192d270b59762de"
+}
